@@ -1,0 +1,197 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>学生提交 · 家校共育</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ --success: #16a34a;
+ }
+ body {
+ min-height: 100vh; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+ background: linear-gradient(160deg, #eff6ff 0%, #f0fdf4 100%); color: var(--text);
+ }
+ .topbar {
+ display: flex; align-items: center; gap: 18px; padding: 12px 20px;
+ background: rgba(255,255,255,0.88); border-bottom: 1px solid var(--border);
+ position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px);
+ }
+ .brand { font-size: 16px; font-weight: 700; white-space: nowrap; }
+ .teacher-nav { display: flex; align-items: center; gap: 6px; flex: 1; overflow-x: auto; }
+ .nav-link {
+ flex: 0 0 auto; padding: 7px 12px; border-radius: 8px; color: var(--text-sub);
+ text-decoration: none; font-size: 14px; font-weight: 600;
+ }
+ .nav-link:hover { color: var(--primary); background: #eff6ff; }
+ .nav-link.active { color: #1d4ed8; background: #dbeafe; }
+ .top-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+ .user-name { font-size: 13px; color: var(--text-sub); white-space: nowrap; }
+ .btn-logout {
+ padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+ background: #fff; color: var(--text-sub); font-size: 13px; cursor: pointer;
+ }
+ .btn-logout:hover { color: var(--primary); border-color: var(--primary); }
+ .count { font-size: 13px; color: var(--text-sub); white-space: nowrap; }
+ .main { max-width: 680px; margin: 0 auto; padding: 24px 20px 60px; }
+ .sub-item {
+ background: #fff; border: 1px solid var(--border); border-radius: 12px;
+ padding: 14px 16px; margin-bottom: 12px;
+ }
+ .sub-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+ .sub-child { font-size: 15px; font-weight: 600; }
+ .sub-task { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+ .badge-done { font-size: 12px; color: var(--success); background: #dcfce7; padding: 2px 10px; border-radius: 10px; }
+ .badge-wait { font-size: 12px; color: #a16207; background: #fef9c3; padding: 2px 10px; border-radius: 10px; }
+ .sub-content { font-size: 14px; color: var(--text-sub); line-height: 1.7; margin-top: 10px; white-space: pre-line; }
+ .attachment-preview { margin-top: 10px; display: grid; gap: 8px; }
+ .attachment-preview img, .attachment-preview video, .attachment-preview audio { max-width: 100%; border-radius: 10px; }
+ .attachment-file { font-size: 13px; color: var(--text-sub); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #fff; }
+ .quick-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+ .quick-btn {
+ border: 1px solid var(--border); background: #f8fafc; color: var(--text-sub);
+ font-size: 12px; padding: 5px 12px; border-radius: 14px; cursor: pointer;
+ }
+ .quick-btn:hover { border-color: var(--primary); color: var(--primary); }
+ .tag-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+ .tag-option {
+ border: 1px solid var(--border); background: #fff; color: var(--text-sub);
+ font-size: 12px; padding: 5px 12px; border-radius: 14px; cursor: pointer;
+ }
+ .tag-option.active { border-color: var(--primary); background: #dbeafe; color: #1d4ed8; }
+ .feedback-input-row { display: flex; gap: 8px; margin-top: 12px; }
+ .feedback-input-row input {
+ flex: 1; height: 38px; padding: 0 12px; font-size: 14px;
+ border: 1px solid var(--border); border-radius: 8px; outline: none;
+ }
+ .feedback-input-row input:focus { border-color: var(--primary); }
+ .feedback-input-row button {
+ padding: 0 16px; height: 38px; border: none; border-radius: 8px;
+ background: var(--primary); color: #fff; font-size: 13px; cursor: pointer;
+ }
+ .empty { text-align: center; padding: 40px 0; color: #9ca3af; font-size: 14px; }
+ @media (max-width: 760px) {
+ .topbar { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+ .teacher-nav { order: 3; width: 100%; flex-basis: 100%; }
+ .top-actions { margin-left: auto; }
+ }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link" href="teacher-publish.html">发布任务</a><a class="nav-link active" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="count" id="subCount"></span><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><div id="subList"><p class="empty">正在加载…</p></div></main><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+ var auth = getAuth();
+ if (auth && auth.user) {
+ if (auth.user.role !== "teacher") { window.location.href = "home.html"; return; }
+ document.getElementById("userName").textContent = "你好，" + auth.user.displayName;
+ }
+ document.getElementById("logoutBtn").addEventListener("click", function () {
+ api("/api/auth/logout", { method: "POST" }).catch(function () {});
+ localStorage.removeItem("auth");
+ window.location.href = "index.html";
+ });
+
+ var QUICK_COMMENTS = [
+ "完成得很棒，继续坚持！",
+ "看得出你们很投入，孩子进步明显。",
+ "过程比结果更重要，你们做得很好。",
+ "建议下周试试同类型的进阶任务。"
+ ];
+ var QUICK_TAGS = ["表达力", "观察力", "坚持", "合作", "责任感", "情绪表达"];
+
+ function renderAttachments(value) {
+ var attachments = [];
+ try { attachments = JSON.parse(value || "[]") || []; } catch (e) {}
+ if (!attachments.length) return "";
+ var h = '<div class="attachment-preview">';
+ attachments.forEach(function (a) {
+ var name = esc(a.name || "附件");
+ var url = a.url || "";
+ if (url && String(a.type || "").indexOf("image/") === 0) h += '<img src="' + esc(url) + '" alt="' + name + '">';
+ else if (url && String(a.type || "").indexOf("audio/") === 0) h += '<audio controls src="' + esc(url) + '"></audio>';
+ else if (url && String(a.type || "").indexOf("video/") === 0) h += '<video controls src="' + esc(url) + '"></video>';
+ else h += '<div class="attachment-file">' + name + '</div>';
+ });
+ return h + '</div>';
+ }
+
+ function load() {
+ api("/api/teacher/overview").then(function (data) {
+ var list = document.getElementById("subList");
+ var subs = data.submissions || [];
+ if (subs.length === 0) {
+ list.innerHTML = '<p class="empty">暂无学生提交</p>';
+ document.getElementById("subCount").textContent = "";
+ return;
+ }
+ var waitCount = subs.filter(function (s) { return s.feedback_count === 0; }).length;
+ document.getElementById("subCount").textContent = "共 " + subs.length + " 份" +
+ (waitCount > 0 ? " · " + waitCount + " 待点评" : "");
+
+ list.innerHTML = subs.map(function (s) {
+ var h = '<div class="sub-item">';
+ h += '<div class="sub-head"><div><p class="sub-child">' + esc(s.child_name) +
+ (s.grade ? " · " + esc(s.grade) : "") + '</p>';
+ h += '<p class="sub-task">' + esc(s.title) + " · " + esc(s.created_at) + '</p></div>';
+ h += s.feedback_count > 0
+ ? '<span class="badge-done">已点评</span>'
+ : '<span class="badge-wait">待点评</span>';
+ h += '</div><div class="sub-content">' + esc(s.content) + '</div>';
+ h += renderAttachments(s.attachments);
+ if (s.feedback_count === 0) {
+ h += '<div class="quick-btns">';
+ QUICK_COMMENTS.forEach(function (c) {
+ h += '<button class="quick-btn" data-sid="' + s.id + '" data-c="' + esc(c) + '">' + esc(c) + '</button>';
+ });
+ h += '</div>';
+ h += '<div class="tag-picker" data-sid="' + s.id + '">';
+ QUICK_TAGS.forEach(function (t) {
+ h += '<button class="tag-option" data-tag="' + esc(t) + '">' + esc(t) + '</button>';
+ });
+ h += '</div>';
+ h += '<div class="feedback-input-row">';
+ h += '<input type="text" placeholder="自定义评语…" maxlength="100" data-sid="' + s.id + '">';
+ h += '<button data-sid="' + s.id + '">发送</button>';
+ h += '</div>';
+ }
+ h += '</div>';
+ return h;
+ }).join('');
+
+ list.querySelectorAll(".quick-btn").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ sendFeedback(Number(btn.getAttribute("data-sid")), btn.getAttribute("data-c"), getTags(btn.closest(".sub-item")));
+ });
+ });
+ list.querySelectorAll(".tag-option").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ btn.classList.toggle("active");
+ });
+ });
+ list.querySelectorAll(".feedback-input-row button").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ var input = btn.parentElement.querySelector("input");
+ var val = input.value.trim();
+ if (!val) return;
+ sendFeedback(Number(btn.getAttribute("data-sid")), val, getTags(btn.closest(".sub-item")));
+ });
+ });
+ }).catch(function (e) {
+ document.getElementById("subList").innerHTML = '<p class="empty">加载失败，请刷新重试</p>';
+ });
+ }
+
+ function getTags(scope) {
+ return Array.prototype.slice.call(scope.querySelectorAll(".tag-option.active"))
+ .map(function (btn) { return btn.getAttribute("data-tag"); })
+ .join(",");
+ }
+
+ function sendFeedback(submissionId, comment, tags) {
+ api("/api/teacher/feedback", {
+ method: "POST",
+ body: { submissionId: submissionId, comment: comment, tags: tags }
+ }).then(function (res) {
+ if (res.ok) load();
+ }).catch(function () {});
+ }
+
+ load();
+ })();
+ </script></body></html>

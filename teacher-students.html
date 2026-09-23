@@ -1,0 +1,296 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>学生档案 · 家校共育</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ --ai-accent: #8b5cf6; --ai-bg: #f5f3ff; --success: #16a34a;
+ }
+ body {
+ min-height: 100vh; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+ background: linear-gradient(160deg, #eff6ff 0%, #f0fdf4 100%); color: var(--text);
+ }
+ .topbar {
+ display: flex; align-items: center; gap: 18px; padding: 12px 20px;
+ background: rgba(255,255,255,0.88); border-bottom: 1px solid var(--border);
+ position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px);
+ }
+ .brand { font-size: 16px; font-weight: 700; white-space: nowrap; }
+ .teacher-nav { display: flex; align-items: center; gap: 6px; flex: 1; overflow-x: auto; }
+ .nav-link {
+ flex: 0 0 auto; padding: 7px 12px; border-radius: 8px; color: var(--text-sub);
+ text-decoration: none; font-size: 14px; font-weight: 600;
+ }
+ .nav-link:hover { color: var(--primary); background: #eff6ff; }
+ .nav-link.active { color: #1d4ed8; background: #dbeafe; }
+ .top-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+ .user-name { font-size: 13px; color: var(--text-sub); white-space: nowrap; }
+ .btn-logout {
+ padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+ background: #fff; color: var(--text-sub); font-size: 13px; cursor: pointer;
+ }
+ .btn-logout:hover { color: var(--primary); border-color: var(--primary); }
+ .count { font-size: 13px; color: var(--text-sub); white-space: nowrap; }
+ .main { max-width: 680px; margin: 0 auto; padding: 24px 20px 60px; }
+
+ .stu-item {
+ background: #fff; border: 1px solid var(--border); border-radius: 12px;
+ margin-bottom: 12px; overflow: hidden; transition: border-color 0.2s;
+ }
+ .stu-item.expanded { border-color: var(--ai-accent); box-shadow: 0 2px 12px rgba(139,92,246,0.1); }
+ .stu-summary { padding: 14px 16px; cursor: pointer; }
+ .stu-summary:hover { background: #fafafa; }
+ .stu-head { display: flex; align-items: center; gap: 10px; }
+ .stu-name { font-size: 15px; font-weight: 600; }
+ .stu-basic { font-size: 13px; color: var(--text-sub); }
+ .stu-expand-icon { margin-left: auto; color: #c7cbd1; font-size: 14px; transition: transform 0.2s; }
+ .stu-item.expanded .stu-expand-icon { transform: rotate(180deg); color: var(--ai-accent); }
+ .stu-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+ .chip {
+ font-size: 12px; padding: 2px 10px; border-radius: 10px;
+ background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe;
+ }
+ .chip.plain { background: #f8fafc; color: var(--text-sub); border-color: var(--border); }
+ .stu-note {
+ margin-top: 10px; font-size: 13px; color: var(--text-sub); line-height: 1.6;
+ background: #f8fafc; border-radius: 8px; padding: 8px 12px;
+ }
+
+ .stu-detail { display: none; padding: 0 16px 16px; }
+ .stu-item.expanded .stu-detail { display: block; }
+ .stu-detail-loading { text-align: center; padding: 24px 0; color: #9ca3af; font-size: 14px; }
+
+ .suggestion-list { margin-top: 16px; }
+ .suggestion-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+ .suggestion-card {
+ background: #faf9ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 16px; margin-bottom: 10px;
+ }
+ .suggestion-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+ .suggestion-type { font-size: 11px; padding: 1px 8px; border-radius: 8px; background: #f3e8ff; color: #7c3aed; }
+ .suggestion-duration { font-size: 12px; color: var(--text-sub); }
+ .suggestion-title-text { font-size: 15px; font-weight: 600; margin-top: 8px; }
+ .suggestion-goal { font-size: 13px; color: var(--text-sub); margin-top: 4px; }
+ .suggestion-steps {
+ font-size: 13px; color: var(--text-sub); line-height: 1.7; margin-top: 8px;
+ white-space: pre-line; background: #fff; border-radius: 8px; padding: 10px 12px;
+ }
+ .suggestion-rationale {
+ font-size: 12px; color: var(--ai-accent); margin-top: 8px; line-height: 1.6;
+ background: var(--ai-bg); border-radius: 8px; padding: 8px 12px;
+ }
+ .btn-use-task {
+ margin-top: 12px; padding: 6px 16px; border: 1px solid var(--ai-accent);
+ border-radius: 8px; background: #fff; color: var(--ai-accent);
+ font-size: 13px; cursor: pointer; font-weight: 500;
+ }
+ .btn-use-task:hover { background: var(--ai-accent); color: #fff; }
+
+ .stu-history {
+ font-size: 12px; color: var(--text-sub); margin-top: 14px;
+ background: #f8fafc; border-radius: 8px; padding: 8px 12px;
+ }
+
+ .publish-section { margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 16px; }
+ .publish-section h3 { font-size: 14px; margin-bottom: 12px; }
+ .field { margin-bottom: 12px; }
+ .field label { display: block; font-size: 13px; color: var(--text-sub); margin-bottom: 5px; }
+ .field input, .field textarea, .field select {
+ width: 100%; padding: 10px 12px; font-size: 14px; font-family: inherit;
+ border: 1px solid var(--border); border-radius: 10px; outline: none;
+ }
+ .field textarea { min-height: 64px; resize: vertical; }
+ .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); }
+ .row2 { display: flex; gap: 12px; }
+ .row2 .field { flex: 1; }
+ .btn-primary {
+ width: 100%; height: 44px; border: none; border-radius: 10px;
+ background: var(--primary); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+ }
+ .btn-primary:disabled { background: #93c5fd; }
+ .form-msg { font-size: 12px; min-height: 16px; margin-top: 8px; color: var(--success); }
+
+ .empty { text-align: center; padding: 40px 0; color: #9ca3af; font-size: 14px; }
+ .section-hint { font-size: 13px; color: var(--text-sub); margin-bottom: 14px; }
+ @media (max-width: 760px) {
+ .topbar { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+ .teacher-nav { order: 3; width: 100%; flex-basis: 100%; }
+ .top-actions { margin-left: auto; }
+ }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link active" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="count" id="stuCount"></span><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><p class="section-hint">点击学生查看规则任务建议，针对学生情况发布成长任务</p><div id="studentList"><p class="empty">正在加载…</p></div></main><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+ var auth = getAuth();
+ if (auth && auth.user) {
+ if (auth.user.role !== "teacher") { window.location.href = "home.html"; return; }
+ document.getElementById("userName").textContent = "你好，" + auth.user.displayName;
+ }
+ document.getElementById("logoutBtn").addEventListener("click", function () {
+ api("/api/auth/logout", { method: "POST" }).catch(function () {});
+ localStorage.removeItem("auth");
+ window.location.href = "index.html";
+ });
+
+ var expandedChildId = null;
+
+ function loadStudents() {
+ return api("/api/teacher/students").then(function (data) {
+ var list = document.getElementById("studentList");
+ var students = data.students || [];
+ if (students.length === 0) {
+ list.innerHTML = '<p class="empty">暂无学生档案</p>';
+ document.getElementById("stuCount").textContent = "";
+ return;
+ }
+ document.getElementById("stuCount").textContent = "共 " + students.length + " 名";
+ list.innerHTML = students.map(function (s) {
+ var chips = "";
+ if (s.gender) chips += '<span class="chip plain">' + esc(s.gender) + '</span>';
+ if (s.age) chips += '<span class="chip plain">' + esc(s.age) + '岁</span>';
+ if (s.grade) chips += '<span class="chip plain">' + esc(s.grade) + '</span>';
+ if (s.caregiver) chips += '<span class="chip">陪伴：' + esc(s.caregiver) + '</span>';
+ if (s.timeAvailable) chips += '<span class="chip">时间：' + esc(s.timeAvailable) + '</span>';
+ var interests = (s.interests || "").split(",").filter(function (t) { return t && t.trim(); });
+ interests.forEach(function (t) { chips += '<span class="chip">兴趣：' + esc(t.trim()) + '</span>'; });
+
+ var h = '<div class="stu-item" data-cid="' + s.id + '">';
+ h += '<div class="stu-summary"><div class="stu-head">';
+ h += '<span class="stu-name">' + esc(s.name) + '</span>';
+ h += '<span class="stu-basic">' + (s.gender ? esc(s.gender) : "") + (s.age ? " · " + esc(s.age) + "岁" : "") + (s.grade ? " · " + esc(s.grade) : "") + '</span>';
+ h += '<span class="stu-expand-icon">▼</span>';
+ h += '</div><div class="stu-chips">' + chips + '</div>';
+ if (s.familyNote) {
+ h += '<div class="stu-note">家庭情况：' + esc(s.familyNote) + '</div>';
+ }
+ h += '</div><div class="stu-detail"><div class="stu-detail-loading">正在生成规则任务建议…</div></div>';
+ h += '</div>';
+ return h;
+ }).join("");
+
+ list.querySelectorAll(".stu-summary").forEach(function (el) {
+ el.addEventListener("click", function () {
+ var item = el.closest(".stu-item");
+ var cid = Number(item.getAttribute("data-cid"));
+ if (item.classList.contains("expanded")) {
+ item.classList.remove("expanded");
+ expandedChildId = null;
+ } else {
+ list.querySelectorAll(".stu-item.expanded").forEach(function (o) { o.classList.remove("expanded"); });
+ item.classList.add("expanded");
+ expandedChildId = cid;
+ loadStudentDetail(item, cid);
+ }
+ });
+ });
+ });
+ }
+
+ function loadStudentDetail(item, childId) {
+ var detail = item.querySelector(".stu-detail");
+ detail.innerHTML = '<div class="stu-detail-loading">正在生成规则任务建议…</div>';
+
+ api("/api/teacher/student-suggestions?childId=" + childId).then(function (data) {
+ var stu = data.student || {};
+ var suggestions = data.suggestions || [];
+ var history = data.history || {};
+
+ var html = "";
+ if (history.totalCompleted > 0) {
+ html += '<div class="stu-history">已完成 ' + history.totalCompleted + ' 个任务，类型：' + (history.completedTypes.join("、") || "暂无") + '</div>';
+ } else {
+ html += '<div class="stu-history">该学生尚未完成任何任务，期待第一次参与</div>';
+ }
+
+ html += '<div class="suggestion-list">';
+ html += '<div class="suggestion-title"><span></span> 规则任务建议</div>';
+ suggestions.forEach(function (sg, idx) {
+ html += '<div class="suggestion-card">';
+ html += '<div class="suggestion-head">';
+ html += '<span class="suggestion-type">' + esc(sg.type) + '</span>';
+ html += '<span class="suggestion-duration">约 ' + sg.duration + ' 分钟</span>';
+ html += '</div>';
+ html += '<div class="suggestion-title-text">' + esc(sg.title) + '</div>';
+ html += '<div class="suggestion-goal">' + esc(sg.goal) + '</div>';
+ html += '<div class="suggestion-steps">' + esc(sg.steps) + '</div>';
+ html += '<div class="suggestion-rationale">' + esc(sg.rationale) + '</div>';
+ html += '<button class="btn-use-task" data-idx="' + idx + '">使用此任务</button>';
+ html += '</div>';
+ });
+ html += '</div>';
+
+ html += '<div class="publish-section">';
+ html += '<h3> 发布任务给 ' + esc(stu.name) + '</h3>';
+ html += '<div class="field"><label>任务标题</label><input type="text" class="pt-title" placeholder="如：亲子共读 20 分钟" maxlength="50"></div>';
+ html += '<div class="row2"><div class="field"><label>任务类型</label><select class="pt-type"><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option>家务实践</option><option>运动健身</option><option>观察探究</option></select></div>';
+ html += '<div class="field"><label>预计时长（分钟）</label><input type="number" class="pt-duration" value="20" min="5" max="60"></div></div>';
+ html += '<div class="row2"><div class="field"><label>难度</label><select class="pt-difficulty"><option>简单</option><option selected>普通</option><option>进阶</option></select></div>';
+ html += '<div class="field"><label>所需材料</label><input type="text" class="pt-materials" placeholder="如：一本书、纸和彩笔" maxlength="80"></div></div>';
+ html += '<div class="field"><label>任务目标</label><input type="text" class="pt-goal" placeholder="一句话说明任务想达成什么" maxlength="100"></div>';
+ html += '<div class="field"><label>亲子步骤</label><textarea class="pt-steps" placeholder="每行一个步骤"></textarea></div>';
+ html += '<div class="field"><label>对话提示</label><input type="text" class="pt-tips" placeholder="给家长的一句话引导" maxlength="100"></div>';
+ html += '<div class="field"><label>提交要求</label><input type="text" class="pt-submit" placeholder="如：拍照或写一段感受" maxlength="100"></div>';
+ html += '<div class="field"><label>替代方案</label><input type="text" class="pt-fallback" placeholder="如：没有材料时可改为口头讨论" maxlength="120"></div>';
+ html += '<button class="btn-primary pt-publish">发布给' + esc(stu.name) + '</button>';
+ html += '<p class="form-msg pt-msg"></p>';
+ html += '</div>';
+
+ detail.innerHTML = html;
+
+ detail.querySelectorAll(".btn-use-task").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ var idx = Number(btn.getAttribute("data-idx"));
+ var sg = suggestions[idx];
+ detail.querySelector(".pt-title").value = sg.title;
+ detail.querySelector(".pt-type").value = sg.type;
+ detail.querySelector(".pt-duration").value = sg.duration;
+ detail.querySelector(".pt-goal").value = sg.goal;
+ detail.querySelector(".pt-steps").value = sg.steps;
+ detail.querySelector(".pt-tips").value = sg.dialogueTips;
+ detail.querySelector(".pt-submit").value = sg.submitHint;
+ detail.querySelector(".pt-difficulty").value = sg.duration <= 15 ? "简单" : "普通";
+ detail.querySelector(".pt-materials").value = "";
+ detail.querySelector(".pt-fallback").value = "可根据家庭时间和材料情况简化步骤";
+ detail.querySelector(".publish-section").scrollIntoView({ behavior: "smooth", block: "center" });
+ });
+ });
+
+ var pubBtn = detail.querySelector(".pt-publish");
+ var pubMsg = detail.querySelector(".pt-msg");
+ pubBtn.addEventListener("click", function () {
+ pubMsg.style.color = ""; pubMsg.textContent = "";
+ var title = detail.querySelector(".pt-title").value.trim();
+ if (!title) { pubMsg.style.color = "#dc2626"; pubMsg.textContent = "请填写任务标题"; return; }
+ pubBtn.disabled = true; pubBtn.textContent = "发布中…";
+ api("/api/teacher/tasks", {
+ method: "POST",
+ body: {
+ childId: childId, title: title,
+ goal: detail.querySelector(".pt-goal").value.trim(),
+ steps: detail.querySelector(".pt-steps").value.trim(),
+ dialogueTips: detail.querySelector(".pt-tips").value.trim(),
+ submitHint: detail.querySelector(".pt-submit").value.trim(),
+ difficulty: detail.querySelector(".pt-difficulty").value,
+ materials: detail.querySelector(".pt-materials").value.trim(),
+ fallbackPlan: detail.querySelector(".pt-fallback").value.trim(),
+ duration: Number(detail.querySelector(".pt-duration").value) || 20,
+ type: detail.querySelector(".pt-type").value
+ }
+ }).then(function (res) {
+ pubBtn.disabled = false; pubBtn.textContent = "发布给" + esc(stu.name);
+ if (res.ok) {
+ pubMsg.textContent = " 已发布，该学生家长端本周可见";
+ } else {
+ pubMsg.style.color = "#dc2626"; pubMsg.textContent = res.message || "发布失败";
+ }
+ }).catch(function () {
+ pubBtn.disabled = false; pubBtn.textContent = "发布给" + esc(stu.name);
+ pubMsg.style.color = "#dc2626"; pubMsg.textContent = "网络异常";
+ });
+ });
+ }).catch(function () {
+ detail.innerHTML = '<p class="empty">规则建议加载失败，请重试</p>';
+ });
+ }
+
+ loadStudents();
+ })();
+ </script></body></html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>家校共育 · 注册</title><link rel="stylesheet" href="css/style.css"><style>
+ .register-link { margin-top: 16px; font-size: 13px; color: var(--text-sub); }
+ .register-link a { color: var(--primary); text-decoration: none; }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><main class="login-page"><div class="login-card"><div class="logo"></div><h1>注册家长账号</h1><p class="slogan">创建账号后，绑定孩子即可开始每周亲子任务</p><form id="registerForm" novalidate><div class="field"><label for="displayName">您的称呼</label><input type="text" id="displayName" placeholder="如：李女士 / 小明妈妈" maxlength="20" required><p class="error-msg" id="displayNameError" aria-live="polite"></p></div><div class="field"><label for="account">账号</label><input type="text" id="account" autocomplete="username"
+ placeholder="字母或数字，至少 3 位" maxlength="30" required><p class="error-msg" id="accountError" aria-live="polite"></p></div><div class="field"><label for="password">密码</label><div class="password-field"><input type="password" id="password" autocomplete="new-password"
+ placeholder="至少 6 位" maxlength="64" required><button type="button" class="toggle-pwd" id="togglePwd" aria-label="显示或隐藏密码"></button></div><p class="error-msg" id="passwordError" aria-live="polite"></p></div><div class="field"><label for="password2">确认密码</label><input type="password" id="password2" autocomplete="new-password"
+ placeholder="再输入一次密码" maxlength="64" required><p class="error-msg" id="password2Error" aria-live="polite"></p></div><button type="submit" class="btn-primary" id="submitBtn">注 册</button></form><p class="register-link">已有账号？<a href="index.html">返回登录</a></p><p class="footer-note">注册即代表同意《用户协议》与《隐私政策》</p></div></main><script>
+ (function () {
+ "use strict";
+ var form = document.getElementById("registerForm");
+ var fields = {
+ displayName: { el: document.getElementById("displayName"), err: document.getElementById("displayNameError") },
+ account: { el: document.getElementById("account"), err: document.getElementById("accountError") },
+ password: { el: document.getElementById("password"), err: document.getElementById("passwordError") },
+ password2: { el: document.getElementById("password2"), err: document.getElementById("password2Error") }
+ };
+ var submitBtn = document.getElementById("submitBtn");
+
+ function setErr(key, msg) {
+ fields[key].err.textContent = msg || "";
+ fields[key].el.classList.toggle("is-invalid", !!msg);
+ }
+ function clearAll() { Object.keys(fields).forEach(function (k) { setErr(k, ""); }); }
+
+ form.addEventListener("submit", function (e) {
+ e.preventDefault();
+ clearAll();
+ var ok = true;
+ if (!fields.displayName.el.value.trim()) { setErr("displayName", "请填写称呼"); ok = false; }
+ var account = fields.account.el.value.trim();
+ if (!account) { setErr("account", "请输入账号"); ok = false; }
+ else if (account.length < 3) { setErr("account", "账号至少 3 个字符"); ok = false; }
+ var pwd = fields.password.el.value;
+ if (pwd.length < 6) { setErr("password", "密码至少 6 位"); ok = false; }
+ if (fields.password2.el.value !== pwd) { setErr("password2", "两次输入的密码不一致"); ok = false; }
+ if (!ok) return;
+
+ submitBtn.disabled = true;
+ submitBtn.textContent = "注册中…";
+
+ fetch("/api/auth/register", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({
+ displayName: fields.displayName.el.value.trim(),
+ account: account,
+ password: pwd
+ })
+ }).then(function (res) {
+ return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+ }).then(function (r) {
+ if (r.ok && r.data.token) {
+ localStorage.setItem("auth", JSON.stringify(r.data));
+ window.location.href = "home.html"; // 新用户未绑定孩子，首页会显示绑定引导
+ } else {
+ setErr("account", r.data.message || "注册失败");
+ submitBtn.disabled = false;
+ submitBtn.textContent = "注 册";
+ }
+ }).catch(function () {
+ if (window.location.protocol === "file:") {
+ setErr("account", "当前是直接打开文件的方式访问，请通过服务器地址 http://localhost:3123 访问");
+ } else {
+ setErr("account", "网络异常，请稍后再试");
+ }
+ submitBtn.disabled = false;
+ submitBtn.textContent = "注 册";
+ });
+ });
+
+ Object.keys(fields).forEach(function (k) {
+ fields[k].el.addEventListener("input", function () { setErr(k, ""); });
+ });
+
+ document.getElementById("togglePwd").addEventListener("click", function () {
+ var isPwd = fields.password.el.type === "password";
+ fields.password.el.type = isPwd ? "text" : "password";
+ });
+ })();
+ </script></body></html>

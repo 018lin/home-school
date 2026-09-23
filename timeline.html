@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>成长档案 · 时间线 · 家校共育</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ }
+ body {
+ min-height: 100vh; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+ background: linear-gradient(160deg, #eff6ff 0%, #f0fdf4 100%); color: var(--text);
+ }
+ .topbar {
+ display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+ background: rgba(255,255,255,0.85); border-bottom: 1px solid var(--border);
+ position: sticky; top: 0;
+ }
+ .back-link { font-size: 14px; color: var(--text-sub); text-decoration: none; padding: 6px 10px; border-radius: 8px; }
+ .back-link:hover { color: var(--primary); background: #f3f4f6; }
+ .topbar .title { font-size: 16px; font-weight: 600; }
+
+ .main { max-width: 640px; margin: 0 auto; padding: 24px 20px 60px; }
+ .empty { text-align: center; padding: 60px 24px; color: #9ca3af; }
+ .empty .icon { font-size: 48px; }
+ .empty p { margin-top: 12px; font-size: 14px; line-height: 1.8; }
+
+ .timeline { position: relative; padding-left: 26px; }
+ .timeline::before {
+ content: ""; position: absolute; left: 8px; top: 8px; bottom: 8px;
+ width: 2px; background: var(--border);
+ }
+ .item { position: relative; margin-bottom: 24px; }
+ .item::before {
+ content: ""; position: absolute; left: -24px; top: 20px;
+ width: 10px; height: 10px; border-radius: 50%;
+ background: var(--primary); border: 2px solid #fff; box-shadow: 0 0 0 2px #dbeafe;
+ }
+ .card {
+ background: #fff; border-radius: 16px; border-top: 3px solid var(--primary);
+ box-shadow: 0 4px 20px rgba(59,130,246,0.08); padding: 20px;
+ }
+ .item.has-feedback::before { background: #dc2626; box-shadow: 0 0 0 2px #fecaca; }
+ .item-title { font-size: 16px; font-weight: 600; }
+ .item-meta { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+ .item-content {
+ margin-top: 12px; font-size: 14px; color: var(--text-sub); line-height: 1.8; white-space: pre-line;
+ }
+ .attachment-preview { margin-top: 10px; display: grid; gap: 8px; }
+ .attachment-preview img, .attachment-preview video, .attachment-preview audio { max-width: 100%; border-radius: 10px; }
+ .attachment-file { font-size: 13px; color: var(--text-sub); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #fff; }
+ .feedback-box {
+ margin-top: 14px; background: #fef2f2; border: 1px solid #fecaca;
+ border-radius: 12px; padding: 12px 16px;
+ }
+ .feedback-box .label { font-size: 12px; color: #dc2626; font-weight: 600; margin-bottom: 4px; }
+ .feedback-box .content { font-size: 13px; line-height: 1.7; }
+ .tags { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+ .tag { font-size: 12px; background: #fff; border: 1px solid var(--border); color: var(--text-sub); padding: 1px 10px; border-radius: 10px; }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><header class="topbar"><a class="back-link" href="home.html">‹ 返回首页</a><span class="title">成长档案 · 时间线</span></header><main class="main"><div id="emptyState" class="empty" style="display:none"><div class="icon"></div><p>还没有成长记录<br>完成第一个亲子任务后，这里会记录孩子的成长足迹</p></div><div class="timeline" id="timeline"></div></main><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+
+ var childId = getSelectedChildId();
+ if (!childId) {
+ // 未选择孩子时先取 home 拿默认孩子
+ api("/api/home").then(function (data) {
+ if (data.child) {
+ setSelectedChildId(data.child.id);
+ load(data.child.id);
+ } else {
+ document.getElementById("emptyState").style.display = "";
+ }
+ });
+ } else {
+ load(childId);
+ }
+
+ function load(cid) {
+ api("/api/timeline?childId=" + cid).then(function (res) {
+ var items = res.items || [];
+ if (items.length === 0) {
+ document.getElementById("emptyState").style.display = "";
+ return;
+ }
+ var html = items.map(function (it) {
+ var h = '<div class="item' + (it.feedback_id ? " has-feedback" : "") + '"><div class="card">';
+ h += '<p class="item-title">' + esc(it.title) + "</p>";
+ h += '<p class="item-meta">' + esc(it.task_type) + " · 第 " + esc(it.week_start) + " 周 · 提交于 " + esc(it.created_at) + "</p>";
+ h += '<div class="item-content">' + esc(it.content) + "</div>";
+ var attachments = [];
+ try { attachments = JSON.parse(it.attachments || "[]") || []; } catch (e) {}
+ if (attachments.length) {
+ h += '<div class="attachment-preview">';
+ attachments.forEach(function (a) {
+ var name = esc(a.name || "附件");
+ var url = a.url || "";
+ if (url && String(a.type || "").indexOf("image/") === 0) h += '<img src="' + esc(url) + '" alt="' + name + '">';
+ else if (url && String(a.type || "").indexOf("audio/") === 0) h += '<audio controls src="' + esc(url) + '"></audio>';
+ else if (url && String(a.type || "").indexOf("video/") === 0) h += '<video controls src="' + esc(url) + '"></video>';
+ else h += '<div class="attachment-file">' + name + '</div>';
+ });
+ h += '</div>';
+ }
+ if (it.feedback_id) {
+ h += '<div class="feedback-box"><p class="label"> ' + esc(it.teacher_name || "老师") + " 的反馈</p>";
+ h += '<p class="content">' + esc(it.feedback_comment) + "</p>";
+ var tags = (it.feedback_tags || "").split(",").filter(function (t) { return t && t.trim(); });
+ if (tags.length) {
+ h += '<div class="tags">' + tags.map(function (t) {
+ return '<span class="tag">' + esc(t.trim()) + "</span>";
+ }).join("") + "</div>";
+ }
+ h += "</div>";
+ }
+ h += "</div></div>";
+ return h;
+ }).join("");
+ document.getElementById("timeline").innerHTML = html;
+ // 反馈已读回执：页面里确实展示了老师的反馈时才上报
+ var fbCount = items.filter(function (it) { return it.feedback_id; }).length;
+ if (fbCount > 0) {
+ trackEvent("feedback_read", { childId: cid, meta: { count: fbCount } });
+ }
+ }).catch(function (e) { console.error(e); });
+ }
+ })();
+ </script></body></html>

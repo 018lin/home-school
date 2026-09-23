@@ -1,0 +1,325 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>家校共育 · 首页</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --primary-dark: #2563eb;
+ --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ --danger: #dc2626; --warning-bg: #fef3c7; --warning-text: #92400e;
+ }
+ body {
+ min-height: 100vh;
+ font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+ background: linear-gradient(160deg, #eff6ff 0%, #f0fdf4 100%);
+ color: var(--text);
+ }
+
+ /* ===== 顶部栏 ===== */
+ .topbar {
+ display: flex; align-items: center; justify-content: space-between;
+ padding: 14px 20px; background: rgba(255,255,255,0.85);
+ border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+ }
+ .topbar .brand { font-size: 17px; font-weight: 600; }
+ .topbar .brand .logo { margin-right: 6px; }
+ .user-area { display: flex; align-items: center; gap: 12px; }
+ .child-switcher {
+ height: 32px; padding: 0 10px; border: 1px solid var(--border);
+ border-radius: 16px; background: #fff; font-size: 13px; color: var(--text); cursor: pointer;
+ }
+ .user-name { font-size: 14px; color: var(--text-sub); }
+ .btn-logout {
+ padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px;
+ background: #fff; color: var(--text-sub); font-size: 13px; cursor: pointer;
+ }
+ .btn-logout:hover { color: var(--primary); border-color: var(--primary); }
+
+ /* ===== 主体 ===== */
+ .main { max-width: 640px; margin: 0 auto; padding: 24px 20px 48px; }
+
+ /* ===== 绑定引导条 ===== */
+ .bind-bar {
+ display: flex; align-items: center; justify-content: space-between;
+ background: var(--warning-bg); border: 1px solid #fde68a; border-radius: 12px;
+ padding: 12px 16px; margin-bottom: 20px; font-size: 14px; color: var(--warning-text);
+ }
+ .bind-bar button {
+ border: none; background: var(--warning-text); color: #fff;
+ padding: 6px 14px; border-radius: 8px; font-size: 13px; cursor: pointer;
+ }
+
+ /* ===== 卡片 ===== */
+ .card {
+ display: block; background: #fff; border-radius: 16px;
+ box-shadow: 0 4px 20px rgba(59,130,246,0.08);
+ padding: 20px; text-decoration: none; color: inherit; cursor: pointer;
+ transition: transform 0.15s, box-shadow 0.15s;
+ }
+ .card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(59,130,246,0.16); }
+ .card + .card { margin-top: 20px; }
+ .card-head { display: flex; align-items: center; gap: 10px; }
+ .card-icon {
+ width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+ font-size: 20px; border-radius: 12px; flex-shrink: 0;
+ }
+ .card-icon.ai { background: #f3e8ff; }
+ .card-icon.task { background: #e0f2fe; }
+ .card-icon.fb { background: #fef2f2; }
+ .card-icon.contact { background: #e0e7ff; }
+ .card-icon.tl { background: #dcfce7; }
+ .card-title { font-size: 16px; font-weight: 600; }
+ .card-tag { margin-left: auto; font-size: 12px; color: var(--text-sub); flex-shrink: 0; }
+ .card-arrow { color: #c7cbd1; }
+ .card-body { margin-top: 14px; font-size: 14px; color: var(--text-sub); line-height: 1.7; word-break: break-word; }
+ .empty-text { color: #9ca3af; }
+
+ /* 状态标签 */
+ .status-tag {
+ font-size: 12px; padding: 2px 10px; border-radius: 10px; font-weight: 400;
+ }
+ .status-ongoing { background: #dbeafe; color: #1d4ed8; }
+ .status-submitted { background: #fef9c3; color: #a16207; }
+ .status-done { background: #dcfce7; color: #15803d; }
+
+ /* 任务卡提交按钮 */
+ .card.task-card { padding: 28px 20px; border-top: 3px solid var(--primary); }
+ .card.task-card .card-body { min-height: 72px; }
+ .task-title-text { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+ .btn-submit {
+ display: inline-block; margin-top: 10px; padding: 7px 18px;
+ border: 1px solid var(--primary); border-radius: 10px; background: var(--primary);
+ color: #fff; font-size: 13px; cursor: pointer; text-decoration: none;
+ }
+ .btn-submit.ghost { background: #fff; color: var(--primary); }
+
+ /* 反馈卡未读 */
+ .unread-badge {
+ background: var(--danger); color: #fff; font-size: 11px;
+ padding: 1px 8px; border-radius: 9px;
+ }
+
+ .footer-note { margin-top: 32px; text-align: center; font-size: 12px; color: #9ca3af; }
+
+ /* ===== 绑定弹窗 ===== */
+ .modal-mask {
+ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+ z-index: 100; align-items: center; justify-content: center; padding: 20px;
+ }
+ .modal-mask.show { display: flex; }
+ .modal {
+ background: #fff; border-radius: 16px; padding: 28px 24px;
+ width: 100%; max-width: 360px;
+ }
+ .modal h3 { font-size: 17px; margin-bottom: 6px; }
+ .modal .modal-desc { font-size: 13px; color: var(--text-sub); margin-bottom: 18px; line-height: 1.6; }
+ .modal .field { margin-bottom: 14px; }
+ .modal label { display: block; font-size: 13px; color: var(--text-sub); margin-bottom: 6px; }
+ .modal input, .modal select {
+ width: 100%; height: 42px; padding: 0 12px; font-size: 14px;
+ border: 1px solid var(--border); border-radius: 10px; outline: none;
+ }
+ .modal input:focus, .modal select:focus { border-color: var(--primary); }
+ .modal-actions { display: flex; gap: 12px; margin-top: 6px; }
+ .modal-actions button {
+ flex: 1; height: 42px; border-radius: 10px; font-size: 14px; cursor: pointer; border: none;
+ }
+ .btn-cancel { background: #f3f4f6; color: var(--text-sub); }
+ .btn-confirm { background: var(--primary); color: #fff; }
+
+ @media (max-width: 420px) {
+ .main { padding: 16px 14px 40px; }
+ .user-name { display: none; }
+ }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><!-- 顶部栏 --><header class="topbar"><div class="brand"><span class="logo"></span>家校共育</div><div class="user-area"><select class="child-switcher" id="childSwitcher" title="切换孩子"></select><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><!-- P0-1 绑定引导条（未绑定时显示） --><div class="bind-bar" id="bindBar" style="display:none"><span>还没有绑定孩子，绑定后才能接收每周亲子任务</span><button id="bindBtn">去绑定</button></div><!-- P0-3 本周任务卡：状态 + 提交直达 --><a class="card task-card" href="task-detail.html" id="taskCard"><div class="card-head"><span class="card-icon task"></span><span class="card-title">本周成长任务</span><span class="card-tag status-tag" id="taskStatusTag" style="display:none"></span><span class="card-arrow">›</span></div><div class="card-body" id="taskBody"><p class="empty-text">暂无本周成长任务</p></div></a><!-- P0-4 老师反馈入口 --><a class="card" href="timeline.html" id="feedbackCard"><div class="card-head"><span class="card-icon fb"></span><span class="card-title">老师的反馈</span><span class="card-tag"><span class="unread-badge" id="unreadBadge" style="display:none"></span></span><span class="card-arrow">›</span></div><div class="card-body" id="feedbackBody"><p class="empty-text">还没有收到老师的反馈</p></div></a><!-- 联系老师入口（沟通行为埋点） --><div class="card contact-card" id="contactCard" role="button" tabindex="0" title="联系老师"><div class="card-head"><span class="card-icon contact"></span><span class="card-title">联系老师</span><span class="card-tag">有疑问或想调整任务安排？</span><span class="card-arrow">›</span></div><div class="card-body">点这里发起一次与老师的沟通，老师会在工作时间内跟进</div></div><!-- P1 家长关注记录入口 --><a class="card engagement-card" href="parent-engagement.html" id="engagementCard"><div class="card-head"><span class="card-icon engagement"></span><span class="card-title">我的关注记录</span><span class="card-tag" id="engagementTag"></span><span class="card-arrow">›</span></div><div class="card-body" id="engagementBody"><p class="empty-text">系统会根据站内行为生成可解释的关注记录</p></div></a><!-- P0-5 成长时间线入口 --><a class="card" href="timeline.html"><div class="card-head"><span class="card-icon tl"></span><span class="card-title">成长档案 · 时间线</span><span class="card-tag" id="timelineCount"></span><span class="card-arrow">›</span></div><div class="card-body" id="timelineBody"><p class="empty-text">完成任务后，这里会记录孩子的成长足迹</p></div></a><p class="footer-note">轻量 · 自愿 · 不排名 · 隐私保护</p></main><!-- 绑定孩子弹窗 --><div class="modal-mask" id="bindModal"><div class="modal"><h3>绑定孩子</h3><p class="modal-desc">填写孩子信息完成绑定。支持绑定多个孩子，可在首页顶部随时切换。</p><div class="field"><label for="childName">孩子姓名 / 昵称</label><input type="text" id="childName" placeholder="如：小明" maxlength="20"></div><div class="field"><label for="childGrade">年级</label><select id="childGrade"><option value="">请选择年级</option><option>一年级</option><option>二年级</option><option>三年级</option><option>四年级</option><option>五年级</option><option>六年级</option><option>初一</option><option>初二</option><option>初三</option></select></div><p class="error-msg" id="bindError" style="color:#dc2626;font-size:12px;min-height:16px"></p><div class="modal-actions"><button class="btn-cancel" id="bindCancel">取消</button><button class="btn-confirm" id="bindConfirm">确认绑定</button></div></div></div><!-- 联系老师弹窗 --><div class="modal-mask" id="contactModal"><div class="modal"><h3>联系老师</h3><p class="modal-desc">已记录你的沟通意向，老师会在工作时间内跟进处理。</p><p class="modal-desc">如需紧急联系，请直接电话或当面沟通。此入口为轻量联系记录，后续可接入真实消息功能。</p><div class="modal-actions"><button class="btn-confirm" id="contactOk">知道了</button></div></div></div><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+ var auth = getAuth();
+ if (auth && auth.user) {
+ document.getElementById("userName").textContent = "你好，" + auth.user.displayName;
+ // 教师账号跳转教师端
+ if (auth.user.role === "teacher") { window.location.href = "teacher.html"; return; }
+ }
+
+ var statusText = { ongoing: "进行中", draft: "草稿", submitted: "已提交", done: "已反馈" };
+ var statusClass = { ongoing: "status-ongoing", draft: "status-ongoing", submitted: "status-submitted", done: "status-done" };
+
+ var currentChildren = [];
+ var currentChildId = null;
+
+ function render(data) {
+ currentChildren = data.children || [];
+ currentChildId = data.child && data.child.id;
+
+ // 孩子切换器
+ var switcher = document.getElementById("childSwitcher");
+ switcher.innerHTML = "";
+ if (currentChildren.length === 0) {
+ var opt = document.createElement("option");
+ opt.textContent = "未绑定孩子";
+ switcher.appendChild(opt);
+ switcher.disabled = true;
+ } else {
+ switcher.disabled = false;
+ currentChildren.forEach(function (c) {
+ var o = document.createElement("option");
+ o.value = c.id;
+ o.textContent = c.name + (c.grade ? " · " + c.grade : "");
+ if (data.child && c.id === data.child.id) o.selected = true;
+ switcher.appendChild(o);
+ });
+ }
+
+ // 绑定引导条
+ document.getElementById("bindBar").style.display = currentChildren.length ? "none" : "flex";
+
+ // 本周任务卡
+ var tag = document.getElementById("taskStatusTag");
+ var body = document.getElementById("taskBody");
+ if (data.task) {
+ trackEvent("task_card_viewed", { childId: data.child && data.child.id, taskId: data.task.id });
+ tag.style.display = "";
+ tag.textContent = statusText[data.taskStatus] || "";
+ tag.className = "card-tag status-tag " + (statusClass[data.taskStatus] || "");
+ var html = '<p class="task-title-text">' + esc(data.task.title) + "</p>";
+ html += "<p>" + esc(data.task.goal || "") + " · 约 " + data.task.duration + " 分钟</p>";
+ if (data.taskStatus === "ongoing") {
+ html += '<span class="btn-submit">去完成 / 提交作品</span>';
+ } else if (data.taskStatus === "draft") {
+ html += '<span class="btn-submit">继续编辑草稿</span>';
+ } else if (data.taskStatus === "submitted") {
+ html += '<span class="btn-submit ghost">已提交，查看详情</span>';
+ } else {
+ html += '<span class="btn-submit ghost">查看老师反馈</span>';
+ }
+ body.innerHTML = html;
+ } else {
+ tag.style.display = "none";
+ body.innerHTML = '<p class="empty-text">暂无本周成长任务</p>';
+ }
+
+ // 老师反馈卡
+ var unread = document.getElementById("unreadBadge");
+ if (data.unreadCount > 0) {
+ unread.style.display = "";
+ unread.textContent = "未读 " + data.unreadCount;
+ } else { unread.style.display = "none"; }
+
+ var fbBody = document.getElementById("feedbackBody");
+ if (data.feedback) {
+ trackEvent("feedback_card_viewed", { childId: data.child && data.child.id });
+ var fb = data.feedback;
+ var short = fb.comment.length > 40 ? fb.comment.slice(0, 40) + "…" : fb.comment;
+ fbBody.innerHTML =
+ "<p>“" + esc(short) + "”</p><p style='font-size:12px;color:#9ca3af;margin-top:4px'>— " +
+ esc(fb.teacher_name || "老师") + " · " + esc(fb.task_title || "") + "</p>";
+ } else {
+ fbBody.innerHTML = '<p class="empty-text">还没有收到老师的反馈</p>';
+ }
+
+ // 我的关注记录卡
+ var engagementTag = document.getElementById("engagementTag");
+ var engagementBody = document.getElementById("engagementBody");
+ if (!data.child) {
+ engagementTag.textContent = "";
+ engagementBody.innerHTML = '<p class="empty-text">绑定孩子后可查看自己的关注记录</p>';
+ } else if (data.engagementEnabled === false) {
+ engagementTag.textContent = "已关闭";
+ engagementBody.innerHTML = '<p>你已关闭关注分析。系统仍保留基础业务记录，但不再向老师展示主动关注判断。</p>';
+ } else if (data.engagement) {
+ var eg = data.engagement;
+ engagementTag.textContent = eg.confidence + "置信度";
+ var ev = (eg.evidence || []).slice(0, 2);
+ engagementBody.innerHTML = '<p><b>' + esc(eg.level) + '</b> · 近' + eg.windowDays +
+ '天</p>' + (ev.length ? '<p style="font-size:12px;color:#9ca3af;margin-top:4px">' +
+ ev.map(esc).join("；") + '</p>' : '<p style="font-size:12px;color:#9ca3af;margin-top:4px">目前记录较少，暂不做强判断</p>');
+ } else {
+ engagementTag.textContent = "透明可查";
+ engagementBody.innerHTML = '<p class="empty-text">查看系统如何判断你的关注记录</p>';
+ }
+
+ // 时间线卡
+ var t = data.timeline || { taskCount: 0, workCount: 0 };
+ if (t.workCount > 0) {
+ document.getElementById("timelineCount").textContent = "本周外累计";
+ document.getElementById("timelineBody").innerHTML =
+ "<p>已记录 <b>" + t.taskCount + "</b> 个任务 · <b>" + t.workCount + "</b> 件作品，点击回看成长足迹</p>";
+ }
+ }
+
+ function loadHome(childId) {
+ var qs = childId ? "?childId=" + childId : "";
+ return api("/api/home" + qs).then(function (data) {
+ // 首次登录的家长（未填问卷、未绑定孩子）→ 进入问卷
+ if (data.needQuestionnaire) {
+ window.location.href = "questionnaire.html";
+ return;
+ }
+ render(data);
+ }).catch(function (e) {
+ console.error(e);
+ });
+ }
+
+ // 切换孩子
+ document.getElementById("childSwitcher").addEventListener("change", function () {
+ setSelectedChildId(this.value);
+ loadHome(this.value);
+ });
+
+ // 退出登录
+ document.getElementById("logoutBtn").addEventListener("click", function () {
+ api("/api/auth/logout", { method: "POST" }).catch(function () {});
+ localStorage.removeItem("auth");
+ localStorage.removeItem("selectedChildId");
+ window.location.href = "index.html";
+ });
+
+ /* ---- 联系老师（teacher_contact_started 埋点） ---- */
+ var contactModal = document.getElementById("contactModal");
+ function openContact() {
+ trackEvent("teacher_contact_started", { childId: currentChildId });
+ contactModal.classList.add("show");
+ }
+ document.getElementById("contactCard").addEventListener("click", openContact);
+ document.getElementById("contactCard").addEventListener("keydown", function (e) {
+ if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openContact(); }
+ });
+ document.getElementById("contactOk").addEventListener("click", function () { contactModal.classList.remove("show"); });
+ contactModal.addEventListener("click", function (e) { if (e.target === contactModal) contactModal.classList.remove("show"); });
+
+ /* ---- 绑定弹窗 ---- */
+ var bindModal = document.getElementById("bindModal");
+ function openBind() {
+ document.getElementById("childName").value = "";
+ document.getElementById("childGrade").value = "";
+ document.getElementById("bindError").textContent = "";
+ bindModal.classList.add("show");
+ }
+ document.getElementById("bindBtn").addEventListener("click", openBind);
+ document.getElementById("bindCancel").addEventListener("click", function () { bindModal.classList.remove("show"); });
+ bindModal.addEventListener("click", function (e) { if (e.target === bindModal) bindModal.classList.remove("show"); });
+
+ document.getElementById("bindConfirm").addEventListener("click", function () {
+ var name = document.getElementById("childName").value.trim();
+ var grade = document.getElementById("childGrade").value;
+ var errEl = document.getElementById("bindError");
+ errEl.textContent = "";
+ if (!name) { errEl.textContent = "请填写孩子姓名/昵称"; return; }
+ api("/api/children", { method: "POST", body: { name: name, grade: grade } })
+ .then(function (res) {
+ if (res.child) {
+ setSelectedChildId(res.child.id);
+ bindModal.classList.remove("show");
+ loadHome(res.child.id);
+ } else {
+ errEl.textContent = res.message || "绑定失败";
+ }
+ })
+ .catch(function () { errEl.textContent = "网络异常，请稍后再试"; });
+ });
+
+ // 首次加载
+ loadHome(getSelectedChildId());
+ })();
+ </script></body></html>
+

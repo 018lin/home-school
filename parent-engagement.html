@@ -1,0 +1,147 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>我的关注记录 · 家校共育</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ --success: #15803d; --warn: #9a3412; --muted: #f6f7f9;
+ }
+ body {
+ min-height: 100vh; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+ background: #f6f7f9; color: var(--text);
+ }
+ .topbar {
+ display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+ background: rgba(255,255,255,0.96); border-bottom: 1px solid var(--border);
+ position: sticky; top: 0; z-index: 10;
+ }
+ .back-link {
+ font-size: 14px; color: var(--text-sub); text-decoration: none; padding: 6px 10px;
+ border: 1px solid var(--border); border-radius: 6px; background: #fff;
+ }
+ .topbar .title { font-size: 16px; font-weight: 600; }
+ .main { max-width: 680px; margin: 0 auto; padding: 24px 20px 60px; }
+ .card {
+ background: #fff; border: 1px solid var(--border); border-radius: 8px;
+ padding: 20px; margin-bottom: 16px;
+ }
+ .card h1 { font-size: 20px; line-height: 1.4; }
+ .card h2 { font-size: 15px; margin-bottom: 12px; }
+ .desc { margin-top: 8px; font-size: 13px; color: var(--text-sub); line-height: 1.7; }
+ .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+ .metric {
+ background: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 12px;
+ }
+ .metric .val { font-size: 22px; font-weight: 700; }
+ .metric .label { margin-top: 2px; font-size: 12px; color: var(--text-sub); }
+ .level-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+ .level-name { font-size: 17px; font-weight: 700; }
+ .badge {
+ display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px;
+ background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+ }
+ .evidence-list { list-style: none; display: grid; gap: 8px; }
+ .evidence-list li {
+ font-size: 13px; color: var(--text-sub); line-height: 1.6;
+ background: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+ }
+ .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+ .plain-list { padding-left: 18px; color: var(--text-sub); font-size: 13px; line-height: 1.9; }
+ .action-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+ button {
+ min-height: 40px; border: 1px solid var(--border); border-radius: 6px; background: #fff;
+ color: var(--text-sub); font-size: 13px; cursor: pointer; font-family: inherit;
+ }
+ button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+ button.warn { color: var(--warn); border-color: #fed7aa; background: #fff7ed; }
+ .msg { min-height: 18px; margin-top: 10px; font-size: 12px; color: var(--success); }
+ .empty { color: #9ca3af; font-size: 14px; text-align: center; padding: 32px 0; }
+ @media (max-width: 560px) {
+ .summary-grid, .columns, .action-row { grid-template-columns: 1fr; }
+ .main { padding-left: 14px; padding-right: 14px; }
+ }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><header class="topbar"><a class="back-link" href="home.html">‹ 返回首页</a><span class="title">我的关注记录</span></header><main class="main"><div id="body"><p class="empty">正在加载…</p></div></main><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+
+ var childId = getSelectedChildId();
+ if (!childId) {
+ api("/api/home").then(function (data) {
+ if (data.child) { setSelectedChildId(data.child.id); load(data.child.id); }
+ else { document.getElementById("body").innerHTML = '<p class="empty">请先绑定孩子</p>'; }
+ });
+ } else {
+ load(childId);
+ }
+
+ function renderList(items) {
+ if (!items || !items.length) return '<li>目前记录较少，系统暂不做强判断</li>';
+ return items.map(function (it) { return '<li>' + esc(it) + '</li>'; }).join("");
+ }
+
+ function renderDataList(items) {
+ return (items || []).map(function (it) { return '<li>' + esc(it) + '</li>'; }).join("");
+ }
+
+ function load(cid) {
+ api("/api/parent/engagement?childId=" + cid).then(function (data) {
+ var eg = data.engagement || {};
+ var enabled = data.enabled !== false;
+ var child = data.child || {};
+ var html = '<section class="card"><h1>' + esc(child.name || "孩子") + '的家校关注记录</h1>';
+ html += '<p class="desc">这里展示系统如何根据站内行为形成“主动关注证据”。它不等同于评价家长是否关心孩子，老师看到的也是带置信度的工作参考。</p>';
+ html += '<div class="level-row"><div><p class="level-name">' + (enabled ? esc(eg.level || "证据不足") : "关注分析已关闭") +
+ '</p><p class="desc">近' + (eg.windowDays || 30) + '天 · 置信度 ' + esc(eg.confidence || "低") +
+ '</p></div><span class="badge">' + (enabled ? "已开启" : "已关闭") + '</span></div>';
+ html += '<div class="summary-grid">';
+ html += '<div class="metric"><div class="val">' + (enabled ? eg.score || 0 : "—") + '</div><div class="label">主动关注分</div></div>';
+ html += '<div class="metric"><div class="val">' + ((eg.counts && eg.counts.activeDays) || 0) + '</div><div class="label">活跃天数</div></div>';
+ html += '<div class="metric"><div class="val">' + ((eg.counts && eg.counts.followThrough) || 0) + '</div><div class="label">跟进行为</div></div>';
+ html += '</div></section>';
+
+ html += '<section class="card"><h2>判断依据</h2><ul class="evidence-list">' + renderList(enabled ? eg.evidence : []) +
+ '</ul><p class="desc">建议动作：' + esc(enabled ? eg.recommendation : "已关闭分析，不生成建议") + '</p></section>';
+
+ html += '<section class="card"><h2>数据范围</h2><div class="columns"><div><p class="desc" style="margin-top:0">会使用</p><ul class="plain-list">' +
+ renderDataList(data.collected) + '</ul></div><div><p class="desc" style="margin-top:0">不会使用</p><ul class="plain-list">' +
+ renderDataList(data.notCollected) + '</ul></div></div></section>';
+
+ html += '<section class="card"><h2>修正与设置</h2><p class="desc">如果你认为系统判断不准确，可以直接反馈。反馈只用于校准判断，不会影响孩子评价。</p>';
+ html += '<div class="action-row"><button class="primary" data-choice="判断基本准确">判断基本准确</button><button data-choice="我很关注，但最近没用系统">我很关注但少用系统</button><button data-choice="目前不希望分析关注情况" class="warn" id="toggleBtn">' +
+ (enabled ? "关闭关注分析" : "重新开启分析") + '</button></div><p class="msg" id="msg"></p></section>';
+
+ document.getElementById("body").innerHTML = html;
+
+ document.querySelectorAll("[data-choice]").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ if (btn.id === "toggleBtn") {
+ setPreference(cid, !enabled);
+ return;
+ }
+ sendFeedback(cid, btn.getAttribute("data-choice"));
+ });
+ });
+ }).catch(function () {
+ document.getElementById("body").innerHTML = '<p class="empty">加载失败，请刷新重试</p>';
+ });
+ }
+
+ function sendFeedback(cid, choice) {
+ api("/api/parent/engagement-feedback", {
+ method: "POST",
+ body: { childId: cid, choice: choice }
+ }).then(function (res) {
+ document.getElementById("msg").textContent = res.ok ? "已收到你的修正反馈" : (res.message || "提交失败");
+ });
+ }
+
+ function setPreference(cid, enabled) {
+ api("/api/parent/engagement-preference", {
+ method: "POST",
+ body: { childId: cid, enabled: enabled }
+ }).then(function (res) {
+ if (res.ok) load(cid);
+ });
+ }
+ })();
+ </script></body></html>

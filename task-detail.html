@@ -1,0 +1,331 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>本周成长任务 · 家校共育</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ --success: #16a34a;
+ }
+ body {
+ min-height: 100vh; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+ background: linear-gradient(160deg, #eff6ff 0%, #f0fdf4 100%); color: var(--text);
+ }
+ .topbar {
+ display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+ background: rgba(255,255,255,0.85); border-bottom: 1px solid var(--border);
+ position: sticky; top: 0;
+ }
+ .back-link { font-size: 14px; color: var(--text-sub); text-decoration: none; padding: 6px 10px; border-radius: 8px; }
+ .back-link:hover { color: var(--primary); background: #f3f4f6; }
+ .topbar .title { font-size: 16px; font-weight: 600; }
+
+ .main { max-width: 640px; margin: 0 auto; padding: 24px 20px 60px; }
+ .card {
+ background: #fff; border-radius: 16px; border-top: 3px solid var(--primary);
+ box-shadow: 0 4px 20px rgba(59,130,246,0.08); padding: 24px; margin-bottom: 20px;
+ }
+ .empty { text-align: center; padding: 48px 24px; color: #9ca3af; }
+ .empty .icon { font-size: 48px; }
+ .empty p { margin-top: 12px; font-size: 14px; line-height: 1.8; }
+
+ .task-type {
+ display: inline-block; font-size: 12px; background: #dbeafe; color: #1d4ed8;
+ padding: 2px 10px; border-radius: 10px; margin-bottom: 10px;
+ }
+ .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+ .meta-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+ .meta-box .label { font-size: 12px; color: #9ca3af; }
+ .meta-box .value { margin-top: 3px; font-size: 13px; color: var(--text); font-weight: 600; }
+ .task-title { font-size: 20px; font-weight: 600; line-height: 1.4; }
+ .task-meta { font-size: 13px; color: var(--text-sub); margin-top: 8px; }
+ .section { margin-top: 20px; }
+ .section h3 { font-size: 14px; margin-bottom: 8px; color: var(--text); }
+ .section p, .section li { font-size: 14px; color: var(--text-sub); line-height: 1.8; white-space: pre-line; }
+ .section ul { padding-left: 20px; }
+ .tip-box {
+ background: #f8fafc; border-left: 3px solid var(--primary); border-radius: 8px;
+ padding: 10px 14px; font-size: 13px; color: var(--text-sub); line-height: 1.7;
+ }
+
+ /* 提交表单 */
+ .submit-card h2 { font-size: 16px; margin-bottom: 14px; }
+ .type-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
+ .type-tab {
+ padding: 6px 16px; border: 1px solid var(--border); border-radius: 18px;
+ background: #fff; font-size: 13px; color: var(--text-sub); cursor: pointer;
+ }
+ .type-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+ textarea {
+ width: 100%; min-height: 110px; padding: 12px; font-size: 14px; font-family: inherit;
+ border: 1px solid var(--border); border-radius: 10px; outline: none; resize: vertical;
+ }
+ textarea:focus { border-color: var(--primary); }
+ .check-group { display: flex; flex-direction: column; gap: 10px; }
+ .check-group label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-sub); cursor: pointer; }
+ .media-panel {
+ border: 1px dashed #bfdbfe; border-radius: 12px; padding: 14px;
+ background: #f8fbff;
+ }
+ .media-panel input { width: 100%; font-size: 13px; color: var(--text-sub); }
+ .media-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+ .media-item { font-size: 13px; color: var(--text-sub); background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+ .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+ .btn-primary {
+ width: 100%; height: 44px; border: none; border-radius: 10px;
+ background: var(--primary); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+ }
+ .btn-secondary {
+ width: 100%; height: 44px; border: 1px solid var(--border); border-radius: 10px;
+ background: #fff; color: var(--text-sub); font-size: 15px; font-weight: 600; cursor: pointer;
+ }
+ .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+ .btn-secondary:disabled { color: #cbd5e1; cursor: not-allowed; }
+ .form-error { color: #dc2626; font-size: 12px; min-height: 16px; margin-top: 8px; }
+ .form-ok { color: var(--success); font-size: 12px; min-height: 16px; margin-top: 8px; }
+
+ /* 已提交状态 */
+ .submitted-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; }
+ .submitted-box .label { font-size: 12px; color: var(--success); font-weight: 600; margin-bottom: 6px; }
+ .submitted-box .content { font-size: 14px; line-height: 1.8; color: var(--text); white-space: pre-line; }
+ .attachment-preview { margin-top: 10px; display: grid; gap: 8px; }
+ .attachment-preview img, .attachment-preview video, .attachment-preview audio { max-width: 100%; border-radius: 10px; }
+ .attachment-file { font-size: 13px; color: var(--text-sub); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #fff; }
+
+ /* 反馈 */
+ .feedback-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; }
+ .feedback-box .label { font-size: 12px; color: #dc2626; font-weight: 600; margin-bottom: 6px; }
+ .feedback-box .content { font-size: 14px; line-height: 1.8; }
+ .tags { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+ .tag { font-size: 12px; background: #fff; border: 1px solid var(--border); color: var(--text-sub); padding: 1px 10px; border-radius: 10px; }
+ @media (max-width: 520px) {
+ .meta-grid, .action-row { grid-template-columns: 1fr; }
+ .type-tabs { overflow-x: auto; padding-bottom: 2px; }
+ .type-tab { white-space: nowrap; }
+ }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><header class="topbar"><a class="back-link" href="home.html">‹ 返回首页</a><span class="title">本周成长任务</span></header><main class="main"><div id="emptyState" class="card empty" style="display:none"><div class="icon"></div><p>本周暂无成长任务<br>老师发布后就会出现在这里</p></div><!-- 任务内容 --><div id="taskCard" class="card" style="display:none"><span class="task-type" id="taskType"></span><h1 class="task-title" id="taskTitle"></h1><p class="task-meta" id="taskMeta"></p><div class="meta-grid"><div class="meta-box"><p class="label">难度</p><p class="value" id="taskDifficulty">普通</p></div><div class="meta-box"><p class="label">材料</p><p class="value" id="taskMaterials">无特殊材料</p></div><div class="meta-box"><p class="label">替代方案</p><p class="value" id="taskFallback">按家庭情况简化</p></div></div><div class="section"><h3> 任务目标</h3><p id="taskGoal"></p></div><div class="section"><h3> 亲子步骤</h3><p id="taskSteps"></p></div><div class="section"><h3> 对话提示</h3><div class="tip-box" id="taskTips"></div></div><div class="section"><h3> 提交什么</h3><p id="taskSubmitHint"></p></div></div><!-- 提交区 --><div id="submitCard" class="card submit-card" style="display:none"><h2>提交你们的成果</h2><div class="type-tabs"><button class="type-tab active" data-type="text"> 文字记录</button><button class="type-tab" data-type="check"> 完成打卡</button><button class="type-tab" data-type="image">照片</button><button class="type-tab" data-type="audio">语音</button><button class="type-tab" data-type="video">视频</button></div><div id="textArea"><textarea id="contentInput" placeholder="记录一下这次亲子任务的感受、孩子的表现或有趣瞬间…"></textarea></div><div id="checkArea" style="display:none" class="check-group"><label><input type="checkbox" class="check-item" value="我们完成了全部步骤"> 我们完成了全部步骤</label><label><input type="checkbox" class="check-item" value="孩子主动参与了"> 孩子主动参与了</label><label><input type="checkbox" class="check-item" value="我们有说有笑"> 我们有说有笑</label><label><input type="checkbox" class="check-item" value="孩子提出了自己的想法"> 孩子提出了自己的想法</label></div><div id="mediaArea" class="media-panel" style="display:none"><input id="mediaInput" type="file"><textarea id="mediaNote" style="margin-top:10px;min-height:80px" placeholder="补充一句说明，方便老师理解作品内容…"></textarea><div class="media-list" id="mediaList"></div></div><p class="form-error" id="submitError"></p><p class="form-ok" id="submitOk"></p><div class="action-row"><button class="btn-secondary" id="draftBtn">保存草稿</button><button class="btn-primary" id="submitBtn">正式提交</button></div></div><!-- 已提交状态 --><div id="submittedCard" class="card" style="display:none"><h2 style="font-size:16px;margin-bottom:14px">已提交</h2><div class="submitted-box"><p class="label"> 你们的记录</p><p class="content" id="submittedContent"></p><div class="attachment-preview" id="submittedAttachments"></div></div><div id="feedbackArea" style="display:none;margin-top:16px"><div class="feedback-box"><p class="label"> 老师的反馈</p><p class="content" id="feedbackContent"></p><div class="tags" id="feedbackTags"></div></div></div></div></main><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+ var subType = "text";
+ var currentTaskId = null;
+ var currentChildId = Number(getSelectedChildId());
+ var mediaAttachments = [];
+ var formInteracted = false;   // 是否编辑过提交内容
+ var savedThisSession = false; // 本次页面是否保存过（草稿或正式提交）
+
+ function parseAttachments(value) {
+ try { return JSON.parse(value || "[]") || []; }
+ catch (e) { return []; }
+ }
+
+ function renderAttachmentPreview(el, attachments) {
+ el.innerHTML = (attachments || []).map(function (a) {
+ var name = esc(a.name || "附件");
+ var url = a.url || "";
+ if (url && String(a.type || "").indexOf("image/") === 0) return '<img src="' + esc(url) + '" alt="' + name + '">';
+ if (url && String(a.type || "").indexOf("audio/") === 0) return '<audio controls src="' + esc(url) + '"></audio>';
+ if (url && String(a.type || "").indexOf("video/") === 0) return '<video controls src="' + esc(url) + '"></video>';
+ return '<div class="attachment-file">' + name + '</div>';
+ }).join("");
+ }
+
+ function renderMediaList() {
+ var list = document.getElementById("mediaList");
+ list.innerHTML = mediaAttachments.map(function (a) {
+ return '<div class="media-item">' + esc(a.name) + ' · ' + Math.ceil((a.size || 0) / 1024) + 'KB</div>';
+ }).join("");
+ }
+
+ function switchType(type) {
+ subType = type;
+ document.querySelectorAll(".type-tab").forEach(function (t) {
+ t.classList.toggle("active", t.getAttribute("data-type") === type);
+ });
+ document.getElementById("textArea").style.display = type === "text" ? "" : "none";
+ document.getElementById("checkArea").style.display = type === "check" ? "" : "none";
+ document.getElementById("mediaArea").style.display = ["image", "audio", "video"].includes(type) ? "" : "none";
+ var mediaInput = document.getElementById("mediaInput");
+ mediaInput.accept = type === "image" ? "image/*" : type === "audio" ? "audio/*" : type === "video" ? "video/*" : "";
+ }
+
+ function readFiles(files) {
+ var picked = Array.prototype.slice.call(files || []).slice(0, 3);
+ var total = picked.reduce(function (n, f) { return n + f.size; }, 0);
+ if (total > 4500000) return Promise.reject(new Error("附件总大小请控制在 4.5MB 以内"));
+ return Promise.all(picked.map(function (file) {
+ return new Promise(function (resolve, reject) {
+ var reader = new FileReader();
+ reader.onload = function () {
+ resolve({ name: file.name, type: file.type, size: file.size, url: reader.result });
+ };
+ reader.onerror = reject;
+ reader.readAsDataURL(file);
+ });
+ }));
+ }
+
+ function render(data) {
+ if (!data.task || !data.child) {
+ document.getElementById("emptyState").style.display = "";
+ return;
+ }
+ currentTaskId = data.task.id;
+ currentChildId = data.child.id;
+ trackEvent("task_detail_viewed", { childId: currentChildId, taskId: currentTaskId });
+ document.getElementById("taskCard").style.display = "";
+ document.getElementById("taskType").textContent = data.task.task_type;
+ document.getElementById("taskTitle").textContent = data.task.title;
+ document.getElementById("taskMeta").textContent =
+ "本周任务 · 约 " + data.task.duration + " 分钟 · 截止周日";
+ document.getElementById("taskDifficulty").textContent = data.task.difficulty || "普通";
+ document.getElementById("taskMaterials").textContent = data.task.materials || "无特殊材料";
+ document.getElementById("taskFallback").textContent = data.task.fallback_plan || "按家庭情况简化";
+ document.getElementById("taskGoal").textContent = data.task.goal || "—";
+ document.getElementById("taskSteps").textContent = data.task.steps || "—";
+ document.getElementById("taskTips").textContent = data.task.dialogue_tips || "—";
+ document.getElementById("taskSubmitHint").textContent = data.task.submit_hint || "—";
+
+ if (data.taskStatus === "ongoing" || data.taskStatus === "draft") {
+ document.getElementById("submitCard").style.display = "";
+ trackEvent("submit_page_entered", { childId: currentChildId, taskId: currentTaskId });
+ if (data.taskStatus === "draft" && data.submission) {
+ switchType(data.submission.sub_type || "text");
+ if (subType === "text") document.getElementById("contentInput").value = data.submission.content || "";
+ if (subType === "check") {
+ var saved = data.submission.content || "";
+ document.querySelectorAll(".check-item").forEach(function (c) {
+ c.checked = saved.indexOf(c.value) >= 0;
+ });
+ }
+ if (["image", "audio", "video"].includes(subType)) {
+ document.getElementById("mediaNote").value = data.submission.content || "";
+ mediaAttachments = parseAttachments(data.submission.attachments);
+ renderMediaList();
+ }
+ document.getElementById("submitOk").textContent = "草稿已保存，可继续编辑后正式提交";
+ }
+ } else {
+ document.getElementById("submittedCard").style.display = "";
+ document.getElementById("submittedContent").textContent = data.submission.content;
+ renderAttachmentPreview(document.getElementById("submittedAttachments"), parseAttachments(data.submission.attachments));
+ if (data.taskStatus === "done" && data.feedback) {
+ document.getElementById("feedbackArea").style.display = "";
+ document.getElementById("feedbackContent").textContent = data.feedback.comment;
+ trackEvent("feedback_read", { childId: currentChildId, taskId: currentTaskId, meta: { source: "task-detail" } });
+ var tags = (data.feedback.tags || "").split(",").filter(function (t) { return t.trim(); });
+ document.getElementById("feedbackTags").innerHTML = tags.map(function (t) {
+ return '<span class="tag">' + esc(t.trim()) + "</span>";
+ }).join("");
+ }
+ }
+ }
+
+ // 提交类型切换
+ document.querySelectorAll(".type-tab").forEach(function (tab) {
+ tab.addEventListener("click", function () {
+ formInteracted = true;
+ switchType(tab.getAttribute("data-type"));
+ });
+ });
+ document.getElementById("contentInput").addEventListener("input", function () { formInteracted = true; });
+ document.getElementById("mediaNote").addEventListener("input", function () { formInteracted = true; });
+ document.querySelectorAll(".check-item").forEach(function (c) {
+ c.addEventListener("change", function () { formInteracted = true; });
+ });
+
+ document.getElementById("mediaInput").addEventListener("change", function () {
+ formInteracted = true;
+ var errEl = document.getElementById("submitError");
+ errEl.textContent = "";
+ readFiles(this.files).then(function (items) {
+ mediaAttachments = items;
+ renderMediaList();
+ }).catch(function (e) {
+ errEl.textContent = e.message || "附件读取失败";
+ });
+ });
+
+ function collectContent(status) {
+ var errEl = document.getElementById("submitError");
+ errEl.textContent = "";
+ document.getElementById("submitOk").textContent = "";
+ var content = "";
+ if (subType === "text") {
+ content = document.getElementById("contentInput").value.trim();
+ } else if (subType === "check") {
+ var checked = Array.prototype.slice.call(document.querySelectorAll(".check-item:checked"))
+ .map(function (c) { return c.value; });
+ content = checked.length ? "打卡：" + checked.join("；") : "";
+ } else {
+ content = document.getElementById("mediaNote").value.trim();
+ }
+ if (status === "submitted" && !content && mediaAttachments.length === 0) {
+ errEl.textContent = "请先填写记录或添加附件";
+ return null;
+ }
+ return content || "";
+ }
+
+ function save(status, btn) {
+ var content = collectContent(status);
+ if (content === null) return;
+ var errEl = document.getElementById("submitError");
+ var okEl = document.getElementById("submitOk");
+ var oldText = btn.textContent;
+ btn.disabled = true;
+ btn.textContent = status === "draft" ? "保存中…" : "提交中…";
+
+ api("/api/submissions", {
+ method: "POST",
+ body: {
+ taskId: currentTaskId,
+ childId: currentChildId,
+ content: content,
+ subType: subType,
+ status: status,
+ attachments: mediaAttachments
+ }
+ }).then(function (res) {
+ if (res.ok) {
+ savedThisSession = true;
+ if (status === "submitted") { window.location.reload(); return; }
+ okEl.textContent = "草稿已保存";
+ }
+ else { errEl.textContent = res.message || "操作失败"; }
+ btn.disabled = false; btn.textContent = oldText;
+ }).catch(function () {
+ errEl.textContent = "网络异常，请稍后再试";
+ btn.disabled = false; btn.textContent = oldText;
+ });
+ }
+
+ document.getElementById("submitBtn").addEventListener("click", function () {
+ save("submitted", this);
+ });
+
+ document.getElementById("draftBtn").addEventListener("click", function () {
+ save("draft", this);
+ });
+
+ /* ---- 提交漏斗：离开页面时若编辑过但未保存，记一次中途放弃 ---- */
+ window.addEventListener("pagehide", function () {
+ if (formInteracted && !savedThisSession && currentTaskId) {
+ var hadContent = false;
+ if (subType === "text") hadContent = !!document.getElementById("contentInput").value.trim();
+ else if (subType === "check") hadContent = document.querySelectorAll(".check-item:checked").length > 0;
+ else hadContent = !!document.getElementById("mediaNote").value.trim() || mediaAttachments.length > 0;
+ trackEvent("submit_abandoned", {
+ childId: currentChildId,
+ taskId: currentTaskId,
+ meta: { subType: subType, hadContent: hadContent }
+ });
+ }
+ });
+
+ api("/api/home" + (getSelectedChildId() ? "?childId=" + getSelectedChildId() : ""))
+ .then(render)
+ .catch(function (e) {
+ document.getElementById("emptyState").style.display = "";
+ console.error(e);
+ });
+ })();
+ </script></body></html>

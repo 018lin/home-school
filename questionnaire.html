@@ -1,0 +1,212 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>首次登录问卷 · 家校共育</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ }
+ body {
+ min-height: 100vh; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+ background: linear-gradient(160deg, #eff6ff 0%, #f0fdf4 100%); color: var(--text);
+ display: flex; justify-content: center; padding: 32px 16px;
+ }
+ .wrap { width: 100%; max-width: 560px; }
+ .progress-note {
+ text-align: center; font-size: 13px; color: var(--text-sub); margin-bottom: 14px;
+ }
+ .card {
+ background: #fff; border-radius: 16px; border-top: 3px solid var(--primary);
+ box-shadow: 0 4px 20px rgba(59,130,246,0.08); padding: 28px 24px;
+ }
+ .card h1 { font-size: 20px; }
+ .card .desc { font-size: 13px; color: var(--text-sub); line-height: 1.7; margin-top: 8px; }
+ .privacy-note {
+ margin-top: 10px; font-size: 12px; color: #92400e; background: #fef3c7;
+ border-radius: 8px; padding: 8px 12px; line-height: 1.6;
+ }
+ .field { margin-top: 18px; }
+ .field > label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+ .field .hint { font-weight: 400; font-size: 12px; color: #9ca3af; margin-left: 4px; }
+ input[type="text"], input[type="number"], select {
+ width: 100%; height: 44px; padding: 0 14px; font-size: 15px;
+ border: 1px solid var(--border); border-radius: 10px; outline: none; font-family: inherit;
+ }
+ input:focus, select:focus { border-color: var(--primary); }
+ .row2 { display: flex; gap: 14px; }
+ .row2 .field { flex: 1; }
+ .options { display: flex; flex-wrap: wrap; gap: 10px; }
+ .opt {
+ padding: 8px 18px; border: 1px solid var(--border); border-radius: 20px;
+ background: #fff; font-size: 14px; color: var(--text-sub); cursor: pointer; user-select: none;
+ }
+ .opt.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
+ textarea {
+ width: 100%; min-height: 72px; padding: 10px 14px; font-size: 14px; font-family: inherit;
+ border: 1px solid var(--border); border-radius: 10px; outline: none; resize: vertical;
+ }
+ textarea:focus { border-color: var(--primary); }
+ .form-error { color: #dc2626; font-size: 13px; min-height: 18px; margin-top: 14px; }
+ .btn-primary {
+ width: 100%; height: 48px; margin-top: 6px; border: none; border-radius: 10px;
+ background: var(--primary); color: #fff; font-size: 16px; font-weight: 600;
+ letter-spacing: 4px; cursor: pointer;
+ }
+ .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+ @media (max-width: 420px) { .row2 { flex-direction: column; gap: 0; } }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body><div class="wrap"><p class="progress-note">第 1 次登录 · 共 1 步，约 1 分钟完成</p><div class="card"><h1>孩子情况小问卷</h1><p class="desc">了解孩子的基本情况，帮助我们推荐更合适的每周亲子成长任务。</p><p class="privacy-note"> 信息仅用于任务匹配，默认只有老师和学校可见，不会公开展示或用于排名比较。</p><form id="qForm" novalidate><div class="field"><label>孩子昵称</label><input type="text" id="childName" placeholder="如：小明" maxlength="20"></div><div class="row2"><div class="field"><label>性别</label><div class="options" id="genderOptions"><span class="opt" data-value="男">男孩</span><span class="opt" data-value="女">女孩</span></div></div><div class="field"><label>年龄</label><input type="number" id="childAge" placeholder="如：9" min="3" max="18"></div></div><div class="field"><label>年级 <span class="hint">选填</span></label><select id="childGrade"><option value="">请选择年级</option><option>一年级</option><option>二年级</option><option>三年级</option><option>四年级</option><option>五年级</option><option>六年级</option><option>初一</option><option>初二</option><option>初三</option></select></div><div class="field"><label>主要陪伴人 <span class="hint">可多选</span></label><div class="options multi" id="caregiverOptions"><span class="opt" data-value="妈妈">妈妈</span><span class="opt" data-value="爸爸">爸爸</span><span class="opt" data-value="祖辈">祖辈</span><span class="opt" data-value="其他亲属">其他亲属</span><span class="opt" data-value="家人轮流">家人轮流</span><span class="opt" data-value="__other">其他…</span></div><input type="text" id="caregiverOther" placeholder="填写其他陪伴人，如：姑姑、托管老师" maxlength="20"
+ style="display:none; margin-top:8px;"></div><div class="field"><label>每周可以一起做任务的时间</label><div class="options" id="timeOptions"><span class="opt" data-value="工作日晚间">工作日晚间</span><span class="opt" data-value="周末白天">周末白天</span><span class="opt" data-value="周末均可">周末均可</span><span class="opt" data-value="时间较少">时间较少，希望任务轻量</span><span class="opt" data-value="__other">其他…</span></div><input type="text" id="timeOther" placeholder="说明你们方便的时间，如：周中19点后、周末上午" maxlength="30"
+ style="display:none; margin-top:8px;"></div><div class="field"><label>孩子的兴趣 <span class="hint">可多选</span></label><div class="options multi" id="interestOptions"><span class="opt">阅读</span><span class="opt">运动</span><span class="opt">绘画手工</span><span class="opt">音乐</span><span class="opt">科学实验</span><span class="opt">动物自然</span><span class="opt">棋类</span><span class="opt">做饭家务</span><span class="opt" data-value="__other">其他…</span></div><input type="text" id="interestOther" placeholder="填写其他兴趣，如：编程、摄影" maxlength="20"
+ style="display:none; margin-top:8px;"></div><div class="field"><label>家庭情况说明 <span class="hint">选填，用于提供任务替代方案</span></label><textarea id="familyNote" placeholder="如：平时由爷爷奶奶照顾 / 单亲家庭 / 希望任务不依赖特殊材料…"></textarea></div><p class="form-error" id="formError"></p><button type="submit" class="btn-primary" id="submitBtn">完成，开始使用</button></form></div></div><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+
+ // 单选组（性别）
+ ["genderOptions"].forEach(function (groupId) {
+ var group = document.getElementById(groupId);
+ group.addEventListener("click", function (e) {
+ if (e.target.classList.contains("opt")) {
+ group.querySelectorAll(".opt").forEach(function (o) { o.classList.remove("selected"); });
+ e.target.classList.add("selected");
+ }
+ });
+ });
+
+ // 每周时间：单选 + "其他…"展开自定义输入
+ var timeGroup = document.getElementById("timeOptions");
+ var timeOtherInput = document.getElementById("timeOther");
+ timeGroup.addEventListener("click", function (e) {
+ var opt = e.target;
+ if (!opt.classList.contains("opt")) return;
+ timeGroup.querySelectorAll(".opt").forEach(function (o) { o.classList.remove("selected"); });
+ opt.classList.add("selected");
+ if (opt.getAttribute("data-value") === "__other") {
+ timeOtherInput.style.display = "";
+ timeOtherInput.focus();
+ } else {
+ timeOtherInput.style.display = "none";
+ }
+ });
+
+ function getTimeAvailable() {
+ var sel = timeGroup.querySelector(".opt.selected");
+ if (!sel) return "";
+ if (sel.getAttribute("data-value") === "__other") return timeOtherInput.value.trim();
+ return sel.getAttribute("data-value") || sel.textContent;
+ }
+
+ // 兴趣：多选 + "其他…"展开自定义输入
+ var interestGroup = document.getElementById("interestOptions");
+ var interestOtherInput = document.getElementById("interestOther");
+ interestGroup.addEventListener("click", function (e) {
+ var opt = e.target;
+ if (!opt.classList.contains("opt")) return;
+ opt.classList.toggle("selected");
+ if (opt.getAttribute("data-value") === "__other") {
+ interestOtherInput.style.display = opt.classList.contains("selected") ? "" : "none";
+ if (opt.classList.contains("selected")) interestOtherInput.focus();
+ }
+ });
+
+ function getInterests() {
+ var list = Array.prototype.slice.call(interestGroup.querySelectorAll(".opt.selected"))
+ .map(function (o) { return o.getAttribute("data-value") || o.textContent; })
+ .filter(function (v) { return v && v !== "__other"; });
+ var other = interestOtherInput.value.trim();
+ if (other) list.push(other);
+ return list;
+ }
+
+ function getSelected(groupId) {
+ var el = document.querySelector("#" + groupId + " .opt.selected");
+ return el ? el.getAttribute("data-value") || el.textContent : "";
+ }
+
+ // 主要陪伴人：多选 + "其他…"展开自定义输入
+ var caregiverGroup = document.getElementById("caregiverOptions");
+ var caregiverOtherInput = document.getElementById("caregiverOther");
+ caregiverGroup.addEventListener("click", function (e) {
+ var opt = e.target;
+ if (!opt.classList.contains("opt")) return;
+ opt.classList.toggle("selected");
+ if (opt.getAttribute("data-value") === "__other") {
+ caregiverOtherInput.style.display = opt.classList.contains("selected") ? "" : "none";
+ if (opt.classList.contains("selected")) caregiverOtherInput.focus();
+ }
+ });
+
+ function getCaregivers() {
+ var list = Array.prototype.slice.call(caregiverGroup.querySelectorAll(".opt.selected"))
+ .map(function (o) { return o.getAttribute("data-value"); })
+ .filter(function (v) { return v && v !== "__other"; });
+ var other = caregiverOtherInput.value.trim();
+ return { list: list, other: other };
+ }
+
+ document.getElementById("qForm").addEventListener("submit", function (e) {
+ e.preventDefault();
+ var errEl = document.getElementById("formError");
+ errEl.textContent = "";
+
+ var childName = document.getElementById("childName").value.trim();
+ var gender = getSelected("genderOptions");
+ var age = Number(document.getElementById("childAge").value);
+ if (!childName) { errEl.textContent = "请填写孩子昵称"; return; }
+ if (!gender) { errEl.textContent = "请选择孩子性别"; return; }
+ if (!age || age < 3 || age > 18) { errEl.textContent = "请填写 3-18 之间的年龄"; return; }
+ var timeAvailable = getTimeAvailable();
+ var timeSel = document.querySelector("#timeOptions .opt.selected");
+ if (!timeAvailable) {
+ if (timeSel && timeSel.getAttribute("data-value") === "__other") {
+ errEl.textContent = "请填写具体的时间说明";
+ } else {
+ errEl.textContent = "请选择每周可用时间";
+ }
+ return;
+ }
+ var caregiverInfo = getCaregivers();
+ if (caregiverInfo.list.length === 0 && !caregiverInfo.other) {
+ errEl.textContent = "请至少选择一位主要陪伴人";
+ return;
+ }
+ var interests = getInterests();
+ if (interests.length === 0) {
+ var intSel = interestGroup.querySelector('.opt.selected[data-value="__other"]');
+ if (intSel && !interestOtherInput.value.trim()) {
+ errEl.textContent = "请填写具体的兴趣说明，或选择已有选项";
+ } else {
+ errEl.textContent = "请至少选择一个孩子兴趣";
+ }
+ return;
+ }
+
+ var btn = document.getElementById("submitBtn");
+ btn.disabled = true; btn.textContent = "提交中…";
+
+ api("/api/questionnaire", {
+ method: "POST",
+ body: {
+ childName: childName,
+ gender: gender,
+ age: age,
+ grade: document.getElementById("childGrade").value,
+ caregiver: caregiverInfo.list,
+ caregiverOther: caregiverInfo.other,
+ timeAvailable: timeAvailable,
+ interests: interests,
+ familyNote: document.getElementById("familyNote").value.trim()
+ }
+ }).then(function (res) {
+ if (res.child) {
+ setSelectedChildId(res.child.id);
+ window.location.href = "home.html";
+ } else {
+ errEl.textContent = res.message || "提交失败，请稍后再试";
+ btn.disabled = false; btn.textContent = "完成，开始使用";
+ }
+ }).catch(function () {
+ errEl.textContent = "网络异常，请稍后再试";
+ btn.disabled = false; btn.textContent = "完成，开始使用";
+ });
+ });
+ })();
+ </script></body></html>

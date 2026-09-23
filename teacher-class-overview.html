@@ -1,0 +1,352 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>班级概览 · 家校共育</title><style>
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ :root {
+ --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ --success: #16a34a; --ai-accent: #8b5cf6; --ai-bg: #f5f3ff;
+ --warn-text: #92400e; --danger: #dc2626;
+ }
+ body {
+ min-height: 100vh; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+ background: linear-gradient(160deg, #eff6ff 0%, #f0fdf4 100%); color: var(--text);
+ }
+ .topbar {
+ display: flex; align-items: center; gap: 18px; padding: 12px 20px;
+ background: rgba(255,255,255,0.88); border-bottom: 1px solid var(--border);
+ position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px);
+ }
+ .brand { font-size: 16px; font-weight: 700; white-space: nowrap; }
+ .teacher-nav { display: flex; align-items: center; gap: 6px; flex: 1; overflow-x: auto; }
+ .nav-link {
+ flex: 0 0 auto; padding: 7px 12px; border-radius: 8px; color: var(--text-sub);
+ text-decoration: none; font-size: 14px; font-weight: 600;
+ }
+ .nav-link:hover { color: var(--primary); background: #eff6ff; }
+ .nav-link.active { color: #1d4ed8; background: #dbeafe; }
+ .top-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+ .user-name { font-size: 13px; color: var(--text-sub); white-space: nowrap; }
+ .btn-logout {
+ padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+ background: #fff; color: var(--text-sub); font-size: 13px; cursor: pointer;
+ }
+ .btn-logout:hover { color: var(--primary); border-color: var(--primary); }
+ body.teacher-overview .main {
+ width: min(1320px, calc(100% - 48px)) !important;
+ max-width: 1320px !important;
+ padding: 28px 0 60px !important;
+ }
+ body.teacher-overview .main::before { display: none !important; }
+ .overview-shell { width: 100%; }
+ .overview-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+ .primary-col, .insight-col { display: grid; gap: 16px; min-width: 0; }
+ .insight-col { position: sticky; top: 92px; }
+ .panel {
+ background: #fff; border: 1px solid var(--border); border-radius: 12px;
+ box-shadow: 0 8px 24px rgba(15,23,42,0.05); padding: 18px;
+ }
+ .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+ .panel-title { font-size: 15px; font-weight: 700; }
+ .panel-meta { color: var(--text-sub); font-size: 12px; }
+ .section-hint { font-size: 13px; color: var(--text-sub); margin-bottom: 14px; line-height: 1.7; }
+ body.teacher-overview .stats-row { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 12px !important; }
+ .stat-box {
+ background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+ }
+ body.teacher-overview .stat-box { background: #fff !important; border: 1px solid var(--border) !important; border-radius: 12px !important; padding: 16px 18px !important; }
+ .stat-box .stat-val { font-size: 30px; line-height: 1; font-weight: 800; }
+ .stat-box .stat-val.ai { color: var(--ai-accent); }
+ .stat-box .stat-val.warn { color: var(--warn-text); }
+ .stat-box .stat-val.ok { color: var(--success); }
+ .stat-box .stat-label { font-size: 12px; color: var(--text-sub); margin-top: 8px; }
+ .stat-bar { height: 4px; border-radius: 2px; background: #e5e7eb; margin-top: 8px; overflow: hidden; }
+ .stat-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+ .stat-bar-fill.ai { background: var(--ai-accent); }
+ .stat-bar-fill.ok { background: var(--success); }
+ .stat-bar-fill.warn { background: #f59e0b; }
+ .task-card { display: grid; gap: 12px; }
+ .task-main { display: flex; gap: 12px; align-items: flex-start; }
+ .task-type {
+ flex: 0 0 auto; border-radius: 6px; background: #eef2ff; color: #4f46e5;
+ font-size: 12px; font-weight: 700; padding: 4px 8px;
+ }
+ .task-name { font-size: 16px; line-height: 1.5; font-weight: 700; }
+ .task-sub { color: var(--text-sub); font-size: 13px; margin-top: 2px; }
+ .personal-summary { border-top: 1px solid var(--border); padding-top: 12px; }
+ .personal-summary-title { color: var(--text-sub); font-size: 13px; margin-bottom: 8px; }
+ .personal-list { display: grid; gap: 6px; }
+ .personal-row {
+ display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px;
+ font-size: 13px; color: var(--text-sub); line-height: 1.55;
+ }
+ .personal-row .pt-name { font-weight: 700; color: #4f46e5; }
+ .insights-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+ .insights-list { list-style: none; }
+ .insights-list li {
+ display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start;
+ font-size: 13px; color: var(--text-sub); line-height: 1.6; padding: 10px 0; border-top: 1px solid #eef2f7;
+ }
+ .insights-list li:first-child { border-top: none; padding-top: 0; }
+ .insights-list li::before { display: none; }
+ .insight-label {
+ border-radius: 6px; background: #f5f3ff; color: #6d28d9;
+ font-size: 12px; font-weight: 700; padding: 2px 6px; white-space: nowrap;
+ }
+ .insight-action { color: var(--text); font-weight: 600; }
+ .attention-section { margin-top: 0; }
+ .attention-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+ .attention-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+ .attention-tag {
+ display: flex; justify-content: space-between; align-items: center; gap: 8px;
+ font-size: 13px; padding: 9px 10px; border-radius: 8px;
+ background: #fff; color: var(--danger); border: 1px solid #fecaca;
+ }
+ .attention-tag .tag-sub { color: #9ca3af; font-size: 12px; }
+ .dist-section { margin-top: 18px; }
+ .dist-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+ .dist-panel { min-width: 0; }
+ .dist-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+ .dist-bar { display: flex; height: 24px; border-radius: 6px; overflow: hidden; margin-bottom: 6px; }
+ .dist-segment { display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; min-width: 0; }
+ .dist-legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-sub); }
+ .dist-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+ .engagement-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 12px 0; }
+ .engagement-box {
+ background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;
+ }
+ .engagement-box .num { font-size: 20px; font-weight: 700; }
+ .engagement-box .num.ok { color: var(--success); }
+ .engagement-box .num.ai { color: var(--ai-accent); }
+ .engagement-box .num.warn { color: var(--warn-text); }
+ .engagement-box .label { margin-top: 2px; font-size: 12px; color: var(--text-sub); }
+ .parent-row { border-top: 1px solid #eef2f7; padding: 10px 0; background: #fff; }
+ body.teacher-overview .parent-row { border: 0 !important; border-top: 1px solid #eef2f7 !important; border-radius: 0 !important; background: #fff !important; padding: 10px 0 !important; }
+ .parent-row:last-child { padding-bottom: 0; }
+ .parent-row-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+ .parent-name { font-size: 14px; font-weight: 600; }
+ .parent-level { font-size: 12px; color: var(--text-sub); }
+ .parent-evidence { margin-top: 6px; font-size: 12px; color: var(--text-sub); line-height: 1.6; }
+ .parent-action { margin-top: 6px; font-size: 12px; color: var(--warn-text); line-height: 1.6; }
+ .badge-wait { font-size: 12px; color: #a16207; background: #fef9c3; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+ .empty { text-align: center; padding: 32px 0; color: #9ca3af; font-size: 14px; }
+ @media (max-width: 700px) {
+ .topbar { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+ .teacher-nav { order: 3; width: 100%; flex-basis: 100%; }
+ .top-actions { margin-left: auto; }
+ }
+ @media (max-width: 1040px) {
+ .overview-layout { grid-template-columns: 1fr; }
+ .insight-col { position: static; }
+ }
+ @media (max-width: 680px) {
+ body.teacher-overview .main { width: min(100% - 28px, 1320px) !important; }
+ .stats-row, .dist-grid, .attention-list { grid-template-columns: 1fr; }
+ body.teacher-overview .stats-row, .dist-grid, .attention-list { grid-template-columns: 1fr !important; }
+ .engagement-grid { grid-template-columns: repeat(2, 1fr); }
+ .personal-row { grid-template-columns: 1fr; gap: 2px; }
+ }
+ </style><link rel="stylesheet" href="css/refined-ui.css">
+</head><body class="teacher-overview"><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link active" href="teacher-class-overview.html">班级概览</a><a class="nav-link" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><div class="overview-shell" id="overviewCard"><div id="overviewBody"><p class="empty">正在加载班级数据…</p></div></div></main><script src="js/api.js"></script><script>
+ (function () {
+ "use strict";
+ requireAuth();
+ var auth = getAuth();
+ if (auth && auth.user) {
+ if (auth.user.role !== "teacher") { window.location.href = "home.html"; return; }
+ document.getElementById("userName").textContent = "你好，" + auth.user.displayName;
+ }
+ document.getElementById("logoutBtn").addEventListener("click", function () {
+ api("/api/auth/logout", { method: "POST" }).catch(function () {});
+ localStorage.removeItem("auth");
+ window.location.href = "index.html";
+ });
+
+ var COLORS = ["#8b5cf6", "#3b82f6", "#16a34a", "#f59e0b", "#ec4899", "#06b6d4", "#6366f1"];
+
+ function renderDist(title, dist) {
+ var entries = Object.entries(dist).filter(function (e) { return e[1] > 0; });
+ if (entries.length === 0) return "";
+ var total = entries.reduce(function (s, e) { return s + e[1]; }, 0);
+ var html = '<div class="dist-panel"><div class="dist-title">' + esc(title) + '</div>';
+ html += '<div class="dist-bar">';
+ entries.forEach(function (e, i) {
+ var pct = Math.round(e[1] / total * 100);
+ var color = COLORS[i % COLORS.length];
+ html += '<div class="dist-segment" style="width:' + pct + '%;background:' + color + '" title="' + esc(e[0]) + ': ' + e[1] + '">' + (pct >= 12 ? esc(e[0]) : "") + '</div>';
+ });
+ html += '</div><div class="dist-legend">';
+ entries.forEach(function (e, i) {
+ var color = COLORS[i % COLORS.length];
+ html += '<span><span class="dot" style="background:' + color + '"></span>' + esc(e[0]) + ' (' + e[1] + ')</span>';
+ });
+ html += '</div></div>';
+ return html;
+ }
+
+ function compactInsight(text, data) {
+ var s = data.stats || {};
+ var unsubmitted = data.unsubmittedStudents || [];
+ if (text.indexOf("完成率") >= 0) {
+ if ((s.completionRate || 0) < 50 || text.indexOf("偏低") >= 0) {
+ return { label: "进度提醒", action: "完成率 " + (s.completionRate || 0) + "% 偏低，建议周三推送催交提醒。" };
+ }
+ if ((s.completionRate || 0) >= 80) {
+ return { label: "表现稳定", action: "完成率 " + (s.completionRate || 0) + "%，班级参与度较高，保持当前节奏。" };
+ }
+ return { label: "进度观察", action: "完成率 " + (s.completionRate || 0) + "%，本周参与表现平稳。" };
+ }
+ if (text.indexOf("待点评") >= 0 || text.indexOf("反馈") >= 0) {
+ if ((s.pendingFeedback || 0) === 0) {
+ return { label: "反馈完成", action: "本周提交均已点评，反馈节奏良好。" };
+ }
+ return { label: "待办急件", action: (s.pendingFeedback || 0) + " 份作业待点评，优先完成反馈。" };
+ }
+ if (text.indexOf("祖辈") >= 0) {
+ var target = unsubmitted.find(function (u) {
+ return String(u.caregiver || "").indexOf("奶奶") >= 0 ||
+ String(u.caregiver || "").indexOf("爷爷") >= 0 ||
+ String(u.caregiver || "").indexOf("外婆") >= 0 ||
+ String(u.caregiver || "").indexOf("外公") >= 0;
+ });
+ return { label: "特殊关怀", action: (target ? target.name + "家庭" : "祖辈带养家庭") + "暂未提交，建议电话或微信轻量跟进。" };
+ }
+ if (text.indexOf("个性化") >= 0) {
+ return { label: "分层推进", action: "已为 " + (s.personalTaskCount || 0) + " 个学生任务做差异化安排，持续观察完成质量。" };
+ }
+ if (text.indexOf("兴趣") >= 0) {
+ return { label: "下周选题", action: text.replace(/^班级兴趣热点：/, "兴趣热点：").replace(/，可据此设计下周任务方向$/, "，可作为下周任务主题。") };
+ }
+ return { label: "观察", action: text };
+ }
+
+ api("/api/teacher/ai-overview").then(function (data) {
+ var s = data.stats || {};
+ var body = document.getElementById("overviewBody");
+
+ if (s.totalStudents === 0) {
+ body.innerHTML = '<p class="empty">暂无学生数据，等待家长绑定孩子或填写问卷</p>';
+ return;
+ }
+
+ var left = '<div class="primary-col">';
+ left += '<div class="stats-row">';
+ left += '<div class="stat-box"><div class="stat-val ' +
+ (s.completionRate >= 80 ? "ok" : s.completionRate < 50 ? "warn" : "ai") + '">' +
+ (s.completionRate || 0) + '%</div><div class="stat-label">本周完成率</div>' +
+ '<div class="stat-bar"><div class="stat-bar-fill ' +
+ (s.completionRate >= 80 ? "ok" : s.completionRate < 50 ? "warn" : "ai") +
+ '" style="width:' + (s.completionRate || 0) + '%"></div></div></div>';
+ left += '<div class="stat-box"><div class="stat-val ' +
+ (s.feedbackRate >= 80 ? "ok" : s.pendingFeedback > 0 ? "warn" : "ai") + '">' +
+ (s.feedbackRate || 0) + '%</div><div class="stat-label">反馈覆盖率</div>' +
+ '<div class="stat-bar"><div class="stat-bar-fill ' +
+ (s.feedbackRate >= 80 ? "ok" : "ai") +
+ '" style="width:' + (s.feedbackRate || 0) + '%"></div></div></div>';
+ left += '<div class="stat-box"><div class="stat-val ' +
+ (s.pendingFeedback > 0 ? "warn" : "ok") + '">' + (s.pendingFeedback || 0) +
+ '</div><div class="stat-label">待点评</div></div>';
+ left += '</div>';
+
+ left += '<section class="panel"><div class="panel-head"><div class="panel-title">当前任务与个性化名单</div><a class="panel-meta" href="teacher-publish.html">调整班级任务</a></div>';
+ left += '<div class="task-card">';
+ if (data.task) {
+ left += '<div class="task-main"><span class="task-type">' + esc(data.task.task_type || "班级任务") + '</span><div>' +
+ '<div class="task-name">' + esc(data.task.title) + '</div>' +
+ '<div class="task-sub">班级任务 · 约 ' + (data.task.duration || 20) + ' 分钟</div></div></div>';
+ } else {
+ left += '<div class="task-main"><span class="task-type">待发布</span><div><div class="task-name">本周尚未发布班级任务</div><div class="task-sub">可前往发布任务页面创建本周任务</div></div></div>';
+ }
+
+ if (s.personalTaskCount > 0) {
+ var pSet = {};
+ (data.personalTasks || []).forEach(function (pt) {
+ if (!pSet[pt.child_name]) pSet[pt.child_name] = [];
+ pSet[pt.child_name].push(pt.title);
+ });
+ left += '<div class="personal-summary"><div class="personal-summary-title">已为 ' + Object.keys(pSet).length + ' 名学生定制</div><div class="personal-list">';
+ Object.keys(pSet).forEach(function (name) {
+ pSet[name].forEach(function (title) {
+ left += '<div class="personal-row"><span class="pt-name">' + esc(name) +
+ '</span><span>' + esc(title) + '</span></div>';
+ });
+ });
+ left += '</div></div>';
+ }
+ if (!data.task && s.personalTaskCount === 0) {
+ left += '<div class="personal-summary"><div class="personal-summary-title">暂无个性化任务</div></div>';
+ }
+ left += '</div></section>';
+
+ var unsubmitted = data.unsubmittedStudents || [];
+ left += '<section class="panel attention-section"><div class="panel-head"><div class="panel-title">本周尚未提交的学生</div><span class="panel-meta">' + unsubmitted.length + ' 人</span></div>';
+ if (unsubmitted.length > 0) {
+ left += '<div class="attention-list">';
+ unsubmitted.forEach(function (u) {
+ left += '<div class="attention-tag"><span>' + esc(u.name) + '</span>' +
+ (u.caregiver ? '<span class="tag-sub">' + esc(u.caregiver) + '</span>' : '<span class="tag-sub">未填写</span>') + '</div>';
+ });
+ left += '</div>';
+ } else {
+ left += '<p class="empty">本周全部学生已提交</p>';
+ }
+ left += '</section>';
+
+ var distHtml = "";
+ if (data.caregiverDistribution && Object.keys(data.caregiverDistribution).length > 0) {
+ distHtml += renderDist('陪伴人分布', data.caregiverDistribution);
+ }
+ if (data.interestDistribution && Object.keys(data.interestDistribution).length > 0) {
+ distHtml += renderDist('兴趣分布', data.interestDistribution);
+ }
+ if (distHtml) {
+ left += '<section class="panel"><div class="panel-head"><div class="panel-title">班级画像分布</div><span class="panel-meta">问卷与档案</span></div><div class="dist-grid">' + distHtml + '</div></section>';
+ }
+ left += '</div>';
+
+ var right = '<aside class="insight-col">';
+ var insights = data.insights || [];
+ right += '<section class="panel"><div class="insights-title">学情洞察与建议</div>';
+ if (insights.length > 0) {
+ right += '<ul class="insights-list">';
+ insights.slice(0, 5).forEach(function (ins) {
+ var compact = compactInsight(ins, data);
+ right += '<li><span class="insight-label">' + esc(compact.label) + '</span><span><span class="insight-action">' + esc(compact.action) + '</span></span></li>';
+ });
+ right += '</ul>';
+ } else {
+ right += '<p class="section-hint">暂无需要特别处理的洞察。</p>';
+ }
+ right += '</section>';
+
+ var es = data.engagementSummary || {};
+ var rows = data.engagementRows || [];
+ if (rows.length > 0) {
+ right += '<section class="panel"><div class="panel-head"><div class="panel-title">家长主动关注证据</div><span class="panel-meta">近30天</span></div>';
+ right += '<p class="section-hint">仅展示站内行为证据，不作为家长关心程度的绝对评价。</p>';
+ right += '<div class="engagement-grid">';
+ right += '<div class="engagement-box"><div class="num ok">' + (es.high || 0) + '</div><div class="label">证据较高</div></div>';
+ right += '<div class="engagement-box"><div class="num ai">' + (es.medium || 0) + '</div><div class="label">有一定证据</div></div>';
+ right += '<div class="engagement-box"><div class="num warn">' + (es.low || 0) + '</div><div class="label">证据较少</div></div>';
+ right += '<div class="engagement-box"><div class="num">' + (es.insufficient || 0) + '</div><div class="label">证据不足</div></div>';
+ right += '</div>';
+ rows.slice().sort(function (a, b) {
+ return (a.engagement.score || 0) - (b.engagement.score || 0);
+ }).slice(0, 3).forEach(function (r) {
+ var eg = r.engagement || {};
+ var evidence = (eg.evidence || []).length ? eg.evidence.slice(0, 1).join("；") : "暂无足够站内行为证据";
+ right += '<div class="parent-row"><div class="parent-row-head"><div><span class="parent-name">' +
+ esc(r.childName) + '</span><span class="parent-level"> · ' + esc(r.caregiver || "家长") +
+ '</span></div><span class="badge-wait">' + esc(eg.level || "证据不足") +
+ ' · ' + esc(eg.confidence || "低") + '置信度</span></div>';
+ right += '<div class="parent-evidence">' + esc(evidence) + '</div>';
+ right += '<div class="parent-action">建议：' + esc(eg.recommendation || "先提供一次清晰摘要") + '</div></div>';
+ });
+ right += '</section>';
+ }
+ right += '</aside>';
+
+ body.innerHTML = '<div class="overview-layout">' + left + right + '</div>';
+ }).catch(function () {
+ document.getElementById("overviewBody").innerHTML =
+ '<p class="empty">数据加载失败，请刷新重试</p>';
+ });
+ })();
+ </script></body></html>
