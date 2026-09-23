@@ -1,0 +1,12 @@
+{
+  "name": "home-school-co-education-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "家校共育系统 · 后端服务（Render 部署用）",
+  "scripts": {
+    "start": "node --experimental-sqlite server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
