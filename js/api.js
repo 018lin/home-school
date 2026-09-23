@@ -1,13 +1,22 @@
 /**
  * 前端 API 工具：统一携带登录态，401 自动跳回登录页
  */
+
+/* API 服务地址（单点配置，只改这里即可）
+ * - 本地开发：用 node server.js 启动时页面和接口同源，保持 "" 不用动
+ * - 线上（Vercel 前端 + Render 后端）：改成你的后端地址，例如：
+ *     window.API_BASE = "https://home-school-backend.onrender.com";
+ *   注意：结尾不要带斜杠 "/"
+ */
+window.API_BASE = "https://home-school-04zi.onrender.com";
+
 function api(path, options) {
   options = options || {};
   var headers = options.headers || {};
   if (options.body) headers["Content-Type"] = "application/json";
   var auth = getAuth();
   if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
-  return fetch(path, {
+  return fetch(API_BASE + path, {
     method: options.method || "GET",
     headers: headers,
     body: options.body ? JSON.stringify(options.body) : undefined

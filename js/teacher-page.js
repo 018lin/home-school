@@ -41,21 +41,60 @@
       '</div><div class="stat-label">' + esc(label) + '</div></div>';
   }
 
+  function emphasize(text) {
+    return esc(text).replace(/(\d+(?:\.\d+)?\s*(?:%|人|名|次|天|小时|份|项)?)/g, "<strong>$1</strong>");
+  }
+
   function list(items, cls) {
     items = items || [];
     if (!items.length) return '<p class="summary">暂无足够数据。</p>';
     return '<ul class="line-list ' + (cls || "") + '">' + items.map(function (item) {
-      return '<li>' + esc(item) + '</li>';
+      return '<li>' + emphasize(item) + '</li>';
     }).join("") + '</ul>';
+  }
+
+  function actionList(items, cls) {
+    items = items || [];
+    if (!items.length) return '<p class="summary">暂无建议动作。</p>';
+    return '<ul class="action-points ' + (cls || "") + '">' + items.map(function (item) {
+      return '<li><span class="point-icon" aria-hidden="true"></span><span>' + emphasize(item) + '</span></li>';
+    }).join("") + '</ul>';
+  }
+
+  function clampPercent(value) {
+    value = Number(value) || 0;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  function badge(label, value, tone) {
+    return '<span class="insight-badge ' + (tone || "") + '"><span>' + esc(label) +
+      '</span><b>' + esc(value) + '</b></span>';
   }
 
   function bars(items) {
     items = items || [];
     if (!items.length) return "";
     return '<div class="bar-list">' + items.map(function (item) {
-      return '<div class="bar-row"><span>' + esc(item.label) +
+      var percent = clampPercent(item.percent);
+      var muted = percent === 0 ? " is-empty" : "";
+      return '<div class="bar-row' + muted + '"><span>' + esc(item.label) +
         '</span><div class="bar-track"><div class="bar-fill" style="width:' +
-        (item.percent || 0) + '%"></div></div><span>' + (item.percent || 0) + '%</span></div>';
+        percent + '%"></div></div><span>' + percent + '%</span></div>';
+    }).join("") + '</div>';
+  }
+
+  function countBars(items) {
+    items = items || [];
+    if (!items.length) return "";
+    var max = items.reduce(function (n, item) {
+      return Math.max(n, Number(item.count) || 0);
+    }, 0) || 1;
+    return '<div class="bar-list count-bars">' + items.map(function (item) {
+      var count = Number(item.count) || 0;
+      var percent = count ? Math.max(8, Math.round(count / max * 100)) : 0;
+      return '<div class="bar-row' + (count ? "" : " is-empty") + '"><span>' + esc(item.label) +
+        '</span><div class="bar-track"><div class="bar-fill" style="width:' + percent +
+        '%"></div></div><span>' + count + '次</span></div>';
     }).join("") + '</div>';
   }
 
@@ -84,6 +123,126 @@
       return '<div class="sample"><b>' + esc(sample.childName) + '</b> · ' +
         esc(sample.taskTitle) + '<br>' + esc(sample.snippet) + '</div>';
     }).join("");
+  }
+
+  function renderReportBadges(report) {
+    var stats = report.stats || {};
+    var difficulty = 0;
+    var behaviorEvents = 0;
+    (report.dimensions || []).forEach(function (dim) {
+      if (dim.key === "textMaterials" && dim.indicators) difficulty = dim.indicators.difficulty || 0;
+      if (dim.key === "behaviorSignals" && dim.indicators) behaviorEvents = dim.indicators.events || 0;
+    });
+    return '<div class="report-badges">' +
+      badge("重点跟进", difficulty ? difficulty + "条困难线索" : "暂无困难线索", difficulty ? "warn" : "calm") +
+      badge("活跃期", stats.peakCompletionTime || "暂无", "accent") +
+      badge("待点评", (stats.weekPendingFeedback || 0) + "份", stats.weekPendingFeedback ? "warn" : "calm") +
+      badge("行为记录", behaviorEvents + "次", behaviorEvents ? "accent" : "muted") +
+      '</div>';
+  }
+
+  function fallbackActionModel(report) {
+    var stats = (report && report.stats) || {};
+    var dims = (report && report.dimensions) || [];
+    var difficulty = 0;
+    var behavior = {};
+    dims.forEach(function (dim) {
+      if (dim.key === "textMaterials" && dim.indicators) difficulty = dim.indicators.difficulty || 0;
+      if (dim.key === "behaviorSignals" && dim.indicators) behavior = dim.indicators;
+    });
+    var priorities = [
+      {
+        title: (stats.weekPendingFeedback || 0) > 0 ? "优先完成本周点评" : "保持点评闭环",
+        urgency: (stats.weekPendingFeedback || 0) > 0 ? "高" : "中",
+        reason: (stats.weekPendingFeedback || 0) > 0
+          ? "本周还有" + stats.weekPendingFeedback + "份提交未点评，先处理能直接提升家长反馈体验。"
+          : "本周提交目前已全部点评，可以把精力转向任务设计和个别跟进。",
+        action: (stats.weekPendingFeedback || 0) > 0
+          ? "先打开学生提交页，按困难线索和提交时间排序点评。"
+          : "抽取1-2条优秀过程记录，作为下周任务示例。"
+      },
+      {
+        title: difficulty > 0 ? "查看困难线索" : "继续鼓励过程记录",
+        urgency: difficulty > 0 ? "高" : "中",
+        reason: difficulty > 0
+          ? "文字素材中出现" + difficulty + "次困难、时间压力或阻力线索，需要先判断是否要减负。"
+          : "当前没有明显困难线索，说明任务负担暂未暴露异常。",
+        action: difficulty > 0
+          ? "给相关提交补一句具体减负建议，并准备更短替代方案。"
+          : "点评时继续追问观察过程、亲子对话和孩子感受。"
+      },
+      {
+        title: "顺着活跃时段提醒",
+        urgency: "中",
+        reason: "当前提交高峰为" + (stats.peakCompletionTime || "暂无") + "，提醒时机比提醒频次更影响完成率。",
+        action: (stats.peakCompletionTime && stats.peakCompletionTime !== "暂无")
+          ? "把提醒提前到高峰前2-4小时，避免临近截止集中催促。"
+          : "先收集更多提交时间，再固定提醒节奏。"
+      }
+    ];
+    return {
+      priorities: priorities,
+      nextWeekPlan: {
+        taskTheme: "低负担亲子观察任务",
+        targetGroup: "全班；时间有限家庭使用简化版",
+        designNotes: ["15分钟内完成", "允许文字或照片任选", "给出一句示范反馈", "保留周末替代方案"],
+        fallback: "只记录一次亲子对话或一张观察照片即可提交。"
+      },
+      followUpGroups: [
+        {
+          group: "已提交家庭",
+          signal: "已有正式提交或进入执行环节",
+          teacherAction: "点评中具体肯定孩子动作，形成正向循环。",
+          tone: "具体肯定"
+        },
+        {
+          group: "仅浏览家庭",
+          signal: (behavior.touchpoints || 0) + "次触达类行为，执行类行为" + (behavior.followThrough || 0) + "次",
+          teacherAction: "提供更短步骤，减少从查看到行动的门槛。",
+          tone: "轻量邀请"
+        }
+      ]
+    };
+  }
+
+  function renderAiActionHub(ai, report) {
+    ai = ai || {};
+    var fallback = fallbackActionModel(report);
+    var priorities = (ai.priorities && ai.priorities.length) ? ai.priorities : fallback.priorities;
+    var plan = (ai.nextWeekPlan && ai.nextWeekPlan.taskTheme) ? ai.nextWeekPlan : fallback.nextWeekPlan;
+    var groups = (ai.followUpGroups && ai.followUpGroups.length) ? ai.followUpGroups : fallback.followUpGroups;
+    var priorityHtml = priorities.length ? priorities.slice(0, 3).map(function (item) {
+      return '<article class="priority-card"><div class="priority-head"><div class="priority-title">' +
+        esc(item.title || "优先事项") + '</div><span class="urgency">' +
+        esc(item.urgency || "中") + '</span></div><p class="priority-reason">' +
+        emphasize(item.reason || "暂无原因说明") + '</p><div class="next-action"><span>下一步</span><b>' +
+        emphasize(item.action || "结合具体提交记录判断") + '</b></div></article>';
+    }).join("") : '<p class="summary">暂无 AI 优先级建议。</p>';
+
+    var planHtml = "";
+    if (plan && plan.taskTheme) {
+      planHtml = '<div class="plan-box"><div class="plan-kicker">下周方案</div><div class="plan-title">' +
+        esc(plan.taskTheme) + '</div><p><b>适用对象：</b>' + esc(plan.targetGroup || "全班") +
+        '</p><div class="chip-line">' + (plan.designNotes || []).slice(0, 4).map(function (note) {
+          return '<span>' + esc(note) + '</span>';
+        }).join("") + '</div><p><b>替代方案：</b>' +
+        esc(plan.fallback || "按家庭时间简化步骤") + '</p></div>';
+    } else {
+      planHtml = '<div class="plan-box"><p class="summary">暂无下周方案。</p></div>';
+    }
+
+    var groupHtml = groups.length ? '<div class="follow-grid">' + groups.slice(0, 3).map(function (group) {
+      return '<div class="follow-card"><div class="follow-title">' +
+        esc(group.group || "跟进对象") + '</div><p><b>信号：</b>' + esc(group.signal || "暂无") +
+        '</p><p><b>建议：</b>' + esc(group.teacherAction || "保持观察") + '</p><span class="tone-tag">' +
+        esc(group.tone || "温和、具体") + '</span></div>';
+    }).join("") + '</div>' : '<p class="summary">暂无分层建议。</p>';
+
+    return '<section class="ai-action-hub"><div class="hub-head"><div><div class="eyebrow">AI 核心洞察与行动建议</div>' +
+      '<h2>先处理最值得老师花时间的事</h2></div></div><div class="hub-layout"><div class="hub-column">' +
+      '<div class="hub-section-title">优先级</div>' + priorityHtml + '</div><div class="hub-column">' +
+      planHtml + '<div class="hub-section-title follow-title-label">分组跟进</div>' + groupHtml +
+      '</div></div></section>';
   }
 
   function renderAiPriorities(items) {
@@ -123,37 +282,104 @@
       (groupsHtml || '<p class="summary">暂无分层建议。</p>') + '</section></section>';
   }
 
-  function renderDimension(dim) {
-    var extra = "";
-    if (dim.key === "profiles") extra = renderProfileRows(dim.rows);
+  function dimensionLabel(key) {
+    var labels = {
+      profiles: "学生详情",
+      completionTime: "完成时间",
+      textMaterials: "素材分析",
+      behaviorSignals: "行为指导"
+    };
+    return labels[key] || "数据维度";
+  }
+
+  function renderDimensionBadges(dim) {
+    if (dim.key === "profiles") {
+      var rows = dim.rows || [];
+      var avg = rows.length ? Math.round(rows.reduce(function (sum, row) {
+        return sum + (Number(row.completeness) || 0);
+      }, 0) / rows.length) : 0;
+      return badge("样本", rows.length + "名", "accent") + badge("档案完整", avg + "%", avg < 70 ? "warn" : "calm");
+    }
     if (dim.key === "completionTime") {
-      extra = '<div class="section-title">提交时段</div>' + bars(dim.distribution) +
-        '<div class="section-title">工作日/周末</div>' + bars(dim.weekdayDistribution);
+      var peak = "暂无";
+      (dim.distribution || []).forEach(function (row) {
+        if (row.percent && (peak === "暂无" || row.percent > peak.percent)) peak = row;
+      });
+      return badge("活跃期", peak.label || "暂无", "accent") +
+        badge("提交滞后", ((dim.latency && dim.latency.avgSubmitLagHours) || 0) + "小时", "muted");
     }
     if (dim.key === "textMaterials") {
-      var indicators = dim.indicators || {};
-      extra = '<div class="mini-table">' +
-        '<div class="mini-row"><b>积极表达</b><span>' + (indicators.positive || 0) + ' 次</span></div>' +
-        '<div class="mini-row"><b>困难线索</b><span>' + (indicators.difficulty || 0) + ' 次</span></div>' +
-        '<div class="mini-row"><b>亲子协作</b><span>' + (indicators.collaboration || 0) + ' 次</span></div>' +
-        '<div class="mini-row"><b>过程记录</b><span>' + (indicators.observation || 0) + ' 次</span></div>' +
-        '</div><div class="section-title">素材样本</div>' + renderSamples(dim.samples);
+      var text = dim.indicators || {};
+      return badge("积极表达", (text.positive || 0) + "次", "calm") +
+        badge("困难线索", (text.difficulty || 0) + "次", text.difficulty ? "warn" : "muted") +
+        badge("亲子协作", (text.collaboration || 0) + "次", "accent");
     }
     if (dim.key === "behaviorSignals") {
       var beh = dim.indicators || {};
-      extra = '<div class="section-title">行为事件分布（近30天）</div>' + bars(dim.distribution) +
-        '<div class="mini-table">' +
-        '<div class="mini-row"><b>触达类行为</b><span>' + (beh.touchpoints || 0) + ' 次</span></div>' +
-        '<div class="mini-row"><b>执行类行为</b><span>' + (beh.followThrough || 0) + ' 次</span></div>' +
-        '<div class="mini-row"><b>有记录学生</b><span>' + (beh.activeStudents || 0) + ' 名</span></div>' +
-        '<div class="mini-row"><b>平均活跃</b><span>' + (beh.avgActiveDays || 0) + ' 天</span></div>' +
-        '</div><div class="section-title">学生行为摘要</div>' + renderBehaviorRows(dim.rows);
+      return badge("触达", (beh.touchpoints || 0) + "次", "accent") +
+        badge("执行", (beh.followThrough || 0) + "次", beh.followThrough ? "calm" : "muted") +
+        badge("活跃学生", (beh.activeStudents || 0) + "名", "accent");
     }
-    return '<section class="report-card"><div class="card-head"><div class="card-title">' +
-      esc(dim.title) + '</div><span class="card-tag">' + (dim.aiSummary ? "AI 增强" : "规则分析") +
-      '</span></div><p class="summary">' + esc(dim.aiSummary || dim.summary) +
-      '</p><div class="section-title">关键发现</div>' + list(dim.findings) +
-      '<div class="section-title">建议动作</div>' + list(dim.actions, "action-list") + extra + '</section>';
+    return "";
+  }
+
+  function renderDimensionVisual(dim) {
+    if (dim.key === "profiles") {
+      return '<div class="compact-note">优先补齐陪伴人、可用时间和兴趣标签，再做个性化任务匹配。</div>';
+    }
+    if (dim.key === "completionTime") {
+      return '<div class="viz-grid"><div><div class="section-title">提交时段</div>' + bars(dim.distribution) +
+        '</div><div><div class="section-title">工作日/周末</div>' + bars(dim.weekdayDistribution) + '</div></div>';
+    }
+    if (dim.key === "textMaterials") {
+      var indicators = dim.indicators || {};
+      return countBars([
+        { label: "积极表达", count: indicators.positive || 0 },
+        { label: "困难线索", count: indicators.difficulty || 0 },
+        { label: "亲子协作", count: indicators.collaboration || 0 },
+        { label: "过程记录", count: indicators.observation || 0 }
+      ]);
+    }
+    if (dim.key === "behaviorSignals") {
+      return '<div class="section-title">行为事件分布（近30天）</div>' + bars(dim.distribution);
+    }
+    return "";
+  }
+
+  function renderDimensionDetails(dim) {
+    var extra = "";
+    if (dim.key === "profiles") extra = renderProfileRows(dim.rows);
+    if (dim.key === "textMaterials") extra = renderSamples(dim.samples);
+    if (dim.key === "behaviorSignals") extra = renderBehaviorRows(dim.rows);
+    return '<details class="analysis-details"><summary>查看详细分析</summary>' +
+      '<div class="details-grid"><div><div class="section-title">关键发现</div>' + list(dim.findings) +
+      '</div><div><div class="section-title">建议动作</div>' + actionList(dim.actions) +
+      '</div></div>' + (extra ? '<div class="section-title">明细样本</div>' + extra : "") + '</details>';
+  }
+
+  function renderDimensionPanel(dim, active) {
+    var finding = (dim.findings && dim.findings[0]) || dim.aiSummary || dim.summary || "暂无足够数据。";
+    var action = (dim.actions && dim.actions[0]) || "继续观察数据变化。";
+    return '<section class="data-pane' + (active ? " active" : "") + '" data-data-panel="' + esc(dim.key) + '">' +
+      '<div class="data-pane-head"><div><div class="eyebrow">' + esc(dimensionLabel(dim.key)) +
+      '</div><h3>' + esc(dim.title) + '</h3></div><span class="card-tag">' +
+      (dim.aiSummary ? "AI 增强" : "规则分析") + '</span></div><div class="report-badges compact">' +
+      renderDimensionBadges(dim) + '</div><div class="core-finding"><span>核心发现</span><p>' +
+      emphasize(finding) + '</p></div><div class="core-action"><span>核心建议</span><p>' +
+      emphasize(action) + '</p></div>' + renderDimensionVisual(dim) + renderDimensionDetails(dim) + '</section>';
+  }
+
+  function renderDataBoard(dims) {
+    dims = dims || [];
+    if (!dims.length) return "";
+    return '<section class="data-board"><div class="board-head"><div><div class="eyebrow">详细学情与数据档案</div>' +
+      '<h2>把明细收进同一个看板</h2></div></div><div class="data-tabs" role="tablist">' +
+      dims.map(function (dim, index) {
+        return '<button type="button" class="data-tab' + (index === 0 ? " active" : "") +
+          '" data-data-tab="' + esc(dim.key) + '">' + esc(dimensionLabel(dim.key)) + '</button>';
+      }).join("") + '</div><div class="data-panels">' + dims.map(function (dim, index) {
+        return renderDimensionPanel(dim, index === 0);
+      }).join("") + '</div></section>';
   }
 
   function assistantGreeting(report) {
@@ -198,6 +424,7 @@
       '<div class="assistant-status">' + (aiLoading ? "正在分析班级数据…" : "已读取学生档案、任务、提交与点评记录") +
       '</div></div></div>' +
       '<span class="assistant-source">' + esc(source) + '</span></div>' +
+      renderReportBadges(report) +
       '<div id="assistantMessages" class="assistant-messages"></div>' +
       '<div class="assistant-quick"><button type="button" data-question="哪些提交最需要我优先点评？">优先点评</button>' +
       '<button type="button" data-question="本周任务负担是否可能偏重？">任务负担</button>' +
@@ -304,31 +531,39 @@
     var stats = report.stats || {};
     var scope = report.dataScope || {};
     var dims = report.dimensions || [];
-    var html = createAssistantShell(report, options.aiLoading === true);
-    html += '<section class="stat-grid">' +
+    var statHtml = '<section class="stat-grid">' +
       stat("学生总数", stats.totalStudents || 0) +
       stat("档案完整度", (stats.profileCompleteness || 0) + "%") +
       stat("提交总数", stats.totalSubmissions || 0) +
       stat("活跃学生", stats.activeStudents || 0) +
       stat("提交高峰", stats.peakCompletionTime || "暂无") +
       stat("平均字数", stats.avgTextLength || 0) + '</section>';
+    var notices = "";
     if (report.aiError) {
-      html += '<div class="warn-note">AI 调用未完成：' + esc(report.aiError) +
+      notices += '<div class="warn-note">AI 调用未完成：' + esc(report.aiError) +
         '。当前展示本地规则分析结果。</div>';
     }
     if ((scope.filteredDemoStudents || 0) > 0) {
-      html += '<div class="warn-note">已排除 ' + esc(scope.filteredDemoStudents) +
+      notices += '<div class="warn-note">已排除 ' + esc(scope.filteredDemoStudents) +
         ' 条演示学生数据，当前报告仅使用真实家长账号产生的数据。</div>';
     }
+    var corePanel = createAssistantShell(report, options.aiLoading === true) + statHtml + notices;
+    var dataPanel = statHtml;
     if ((scope.realStudents || 0) === 0) {
-      html += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看 AI 分析。</p>';
+      corePanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看 AI 分析。</p>';
+      dataPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看数据档案。</p>';
     } else {
-      html += renderAiPriorities(ai.priorities) + renderAiPlan(ai);
-      html += '<section class="report-grid">' + dims.map(renderDimension).join("") + '</section>';
+      corePanel += renderAiActionHub(ai, report);
+      dataPanel += notices + renderDataBoard(dims);
       if (ai.risks && ai.risks.length) {
-        html += '<div class="warn-note"><b>谨慎解读：</b>' + esc(ai.risks.join("；")) + '</div>';
+        corePanel += '<div class="warn-note"><b>谨慎解读：</b>' + esc(ai.risks.join("；")) + '</div>';
       }
     }
+    var html = '<section class="dashboard-tabs"><div class="main-tab-list" role="tablist">' +
+      '<button type="button" class="main-tab active" data-main-tab="core">AI 核心洞察与行动建议</button>' +
+      '<button type="button" class="main-tab" data-main-tab="data">详细学情与数据档案</button>' +
+      '</div><div class="main-tab-panel active" data-main-panel="core">' + corePanel +
+      '</div><div class="main-tab-panel" data-main-panel="data">' + dataPanel + '</div></section>';
     document.getElementById("reportBody").innerHTML = html;
     if (options.restoreMessages) {
       // 问候语始终按最新逻辑与最新数据重新生成，历史对话恢复时跳过缓存的旧问候语
@@ -338,6 +573,7 @@
       appendMessage("assistant", assistantGreeting(report));
     }
     bindAssistant();
+    bindDashboardTabs();
   }
 
   function bindAssistant() {
@@ -353,6 +589,33 @@
     document.querySelectorAll(".assistant-quick button").forEach(function (button) {
       button.addEventListener("click", function () {
         sendQuestion(button.getAttribute("data-question"));
+      });
+    });
+  }
+
+  function bindDashboardTabs() {
+    document.querySelectorAll(".main-tab").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var target = button.getAttribute("data-main-tab");
+        document.querySelectorAll(".main-tab").forEach(function (tab) {
+          tab.classList.toggle("active", tab === button);
+        });
+        document.querySelectorAll(".main-tab-panel").forEach(function (panel) {
+          panel.classList.toggle("active", panel.getAttribute("data-main-panel") === target);
+        });
+      });
+    });
+    document.querySelectorAll(".data-tab").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var target = button.getAttribute("data-data-tab");
+        var board = button.closest(".data-board");
+        if (!board) return;
+        board.querySelectorAll(".data-tab").forEach(function (tab) {
+          tab.classList.toggle("active", tab === button);
+        });
+        board.querySelectorAll(".data-pane").forEach(function (panel) {
+          panel.classList.toggle("active", panel.getAttribute("data-data-panel") === target);
+        });
       });
     });
   }

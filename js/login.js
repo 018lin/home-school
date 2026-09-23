@@ -34,7 +34,8 @@
   }
 
   function apiLogin(account, password) {
-    return fetch("/api/auth/login", {
+    var base = window.API_BASE || ""; // 线上（Vercel）由 js/api.js 注入后端地址
+    return fetch(base + "/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ account: account, password: password })
