@@ -1,13 +1,13 @@
 /**
  * 家校共育系统 · 后端服务
- * 技术栈：Node.js 内置 http + node:sqlite（真实 SQLite 数据库，零外部依赖）
+ * 技术栈：Node.js 内置 http + 本地 SQLite / 线上 Neon PostgreSQL
  * 启动：node --experimental-sqlite server.js
  */
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { DatabaseSync } = require("node:sqlite");
+const { DatabaseAdapter, initializeDatabase } = require("./database");
 
 const PORT = Number(process.env.PORT) || 3123;
 const ROOT = __dirname;
@@ -20,142 +20,14 @@ function loadLocalEnv(root) {
       const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
       if (!m || process.env[m[1]]) return;
       let value = m[2].trim();
-      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
-      }
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
       process.env[m[1]] = value;
     });
   });
 }
 loadLocalEnv(ROOT);
 
-/* ============ 数据库初始化 ============ */
-// 线上部署时将 DATA_DIR 指向 Render Persistent Disk，例如 /var/data；
-// 本地未配置时仍使用项目内的 data 目录，避免把用户数据库提交到仓库。
-const configuredDataDir = process.env.DATA_DIR || path.join(ROOT, "data");
-const DATA_DIR = path.isAbsolute(configuredDataDir)
-  ? configuredDataDir
-  : path.resolve(ROOT, configuredDataDir);
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-const db = new DatabaseSync(path.join(DATA_DIR, "app.db"));
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  account TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  display_name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'parent',
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS sessions (
-  token TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS children (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  grade TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS bindings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  child_id INTEGER NOT NULL,
-  relation TEXT NOT NULL DEFAULT '家长',
-  UNIQUE(user_id, child_id)
-);
-CREATE TABLE IF NOT EXISTS tasks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL,
-  goal TEXT NOT NULL DEFAULT '',
-  steps TEXT NOT NULL DEFAULT '',
-  dialogue_tips TEXT NOT NULL DEFAULT '',
-  submit_hint TEXT NOT NULL DEFAULT '',
-  duration INTEGER NOT NULL DEFAULT 20,
-  task_type TEXT NOT NULL DEFAULT '阅读',
-  week_start TEXT NOT NULL,
-  published_by INTEGER,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS submissions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  task_id INTEGER NOT NULL,
-  child_id INTEGER NOT NULL,
-  content TEXT NOT NULL,
-  sub_type TEXT NOT NULL DEFAULT 'text',
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS feedback (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  submission_id INTEGER NOT NULL,
-  teacher_id INTEGER,
-  comment TEXT NOT NULL,
-  tags TEXT NOT NULL DEFAULT '',
-  read_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS questionnaires (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  child_id INTEGER,
-  answers TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  child_id INTEGER,
-  task_id INTEGER,
-  event_type TEXT NOT NULL,
-  meta TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE TABLE IF NOT EXISTS engagement_preferences (
-  user_id INTEGER NOT NULL,
-  child_id INTEGER NOT NULL,
-  enabled INTEGER NOT NULL DEFAULT 1,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  UNIQUE(user_id, child_id)
-);
-CREATE TABLE IF NOT EXISTS ai_vector_documents (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  namespace TEXT NOT NULL DEFAULT 'teacher',
-  doc_key TEXT UNIQUE NOT NULL,
-  doc_type TEXT NOT NULL,
-  ref_id TEXT NOT NULL DEFAULT '',
-  title TEXT NOT NULL DEFAULT '',
-  content TEXT NOT NULL,
-  metadata TEXT NOT NULL DEFAULT '{}',
-  embedding TEXT NOT NULL DEFAULT '[]',
-  embedding_model TEXT NOT NULL DEFAULT '',
-  embedding_provider TEXT NOT NULL DEFAULT '',
-  content_hash TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-`);
-
-// 问卷功能引入后，为 children 表补充个性化标签字段（已存在则忽略）
-function safeExec(sql) { try { db.exec(sql); } catch (e) { /* 列已存在 */ } }
-safeExec("ALTER TABLE children ADD COLUMN gender TEXT NOT NULL DEFAULT ''");
-safeExec("ALTER TABLE children ADD COLUMN age INTEGER");
-safeExec("ALTER TABLE children ADD COLUMN caregiver TEXT NOT NULL DEFAULT ''");
-safeExec("ALTER TABLE children ADD COLUMN interests TEXT NOT NULL DEFAULT ''");
-safeExec("ALTER TABLE children ADD COLUMN family_note TEXT NOT NULL DEFAULT ''");
-// 任务表增加 child_id 字段：NULL 表示班级任务，具体值表示个人任务
-safeExec("ALTER TABLE tasks ADD COLUMN child_id INTEGER");
-safeExec("ALTER TABLE tasks ADD COLUMN difficulty TEXT NOT NULL DEFAULT '普通'");
-safeExec("ALTER TABLE tasks ADD COLUMN materials TEXT NOT NULL DEFAULT ''");
-safeExec("ALTER TABLE tasks ADD COLUMN fallback_plan TEXT NOT NULL DEFAULT ''");
-safeExec("ALTER TABLE submissions ADD COLUMN status TEXT NOT NULL DEFAULT 'submitted'");
-safeExec("ALTER TABLE submissions ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'");
-safeExec("CREATE INDEX IF NOT EXISTS idx_bindings_user_child ON bindings(user_id, child_id)");
-safeExec("CREATE INDEX IF NOT EXISTS idx_submissions_child_task ON submissions(child_id, task_id, status)");
-safeExec("CREATE INDEX IF NOT EXISTS idx_tasks_week_child ON tasks(week_start, child_id)");
-safeExec("CREATE INDEX IF NOT EXISTS idx_events_type_child_task ON events(event_type, child_id, task_id)");
-safeExec("CREATE INDEX IF NOT EXISTS idx_ai_vector_documents_namespace ON ai_vector_documents(namespace, doc_type)");
-
+const db = new DatabaseAdapter({ root: ROOT });
 /* ============ 工具函数 ============ */
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -200,32 +72,32 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
-function getAuthUser(req) {
+async function getAuthUser(req) {
   const header = req.headers["authorization"] || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return null;
-  const row = db.prepare(
+  const row = await db.prepare(
     "SELECT u.id, u.account, u.display_name, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?"
   ).get(token);
   return row || null;
 }
-function createSession(userId) {
+async function createSession(userId) {
   const token = crypto.randomBytes(24).toString("hex");
-  db.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)").run(token, userId);
+  await db.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)").run(token, userId);
   return token;
 }
-function isBoundChild(userId, childId) {
-  return !!db.prepare("SELECT id FROM bindings WHERE user_id = ? AND child_id = ?").get(userId, childId);
+async function isBoundChild(userId, childId) {
+  return !!await db.prepare("SELECT id FROM bindings WHERE user_id = ? AND child_id = ?").get(userId, childId);
 }
-function canAccessChild(user, childId) {
+async function canAccessChild(user, childId) {
   if (!childId) return false;
   if (user.role === "teacher") {
-    return !!db.prepare("SELECT id FROM children WHERE id = ?").get(childId);
+    return !!await db.prepare("SELECT id FROM children WHERE id = ?").get(childId);
   }
-  return user.role === "parent" && isBoundChild(user.id, childId);
+  return user.role === "parent" && await isBoundChild(user.id, childId);
 }
-function getVisibleTask(taskId, childId) {
-  const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId);
+async function getVisibleTask(taskId, childId) {
+  const task = await db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId);
   if (!task) return null;
   if (task.child_id != null && Number(task.child_id) !== Number(childId)) return null;
   return task;
@@ -238,10 +110,10 @@ function cleanTags(tags) {
     .slice(0, 5)
     .join(",");
 }
-function logEvent(user, eventType, childId, taskId, meta) {
+async function logEvent(user, eventType, childId, taskId, meta) {
   const type = String(eventType || "").trim().slice(0, 60);
   if (!type) return;
-  db.prepare(
+  await db.prepare(
     "INSERT INTO events (user_id, child_id, task_id, event_type, meta) VALUES (?,?,?,?,?)"
   ).run(
     user ? user.id : null,
@@ -276,22 +148,22 @@ function latestQuestionnaireJoin() {
     "SELECT q2.id FROM questionnaires q2 WHERE q2.child_id = c.id ORDER BY q2.id DESC LIMIT 1" +
   ") ";
 }
-function getTeacherVisibleChildren() {
-  return db.prepare(
+async function getTeacherVisibleChildren() {
+  return await db.prepare(
     "SELECT c.*, q.answers AS q_answers FROM children c " +
     latestQuestionnaireJoin() +
     "WHERE " + realStudentWhere("c") + " ORDER BY c.id"
   ).all(...demoParams(2));
 }
 
-function getParentEngagement(userId, childId) {
+async function getParentEngagement(userId, childId) {
   const since = new Date();
   since.setDate(since.getDate() - 30);
   const sinceText = since.getFullYear() + "-" +
     String(since.getMonth() + 1).padStart(2, "0") + "-" +
     String(since.getDate()).padStart(2, "0") + " 00:00:00";
 
-  const rows = db.prepare(
+  const rows = await db.prepare(
     "SELECT event_type, created_at FROM events " +
     "WHERE user_id = ? AND child_id = ? AND created_at >= ? " +
     "ORDER BY created_at DESC"
@@ -371,8 +243,8 @@ function getParentEngagement(userId, childId) {
   };
 }
 
-function getEngagementPreference(userId, childId) {
-  const row = db.prepare(
+async function getEngagementPreference(userId, childId) {
+  const row = await db.prepare(
     "SELECT enabled FROM engagement_preferences WHERE user_id = ? AND child_id = ?"
   ).get(userId, childId);
   return !row || Number(row.enabled) !== 0;
@@ -556,8 +428,8 @@ function parseJsonField(value) {
   try { return JSON.parse(value || "{}") || {}; } catch (e) { return {}; }
 }
 
-function teacherParentInfo(childId) {
-  return db.prepare(
+async function teacherParentInfo(childId) {
+  return await db.prepare(
     "SELECT u.display_name, b.relation FROM bindings b JOIN users u ON u.id = b.user_id " +
     "WHERE b.child_id = ? AND u.role = 'parent' ORDER BY b.id"
   ).all(childId).map(function (row) {
@@ -591,8 +463,8 @@ function buildTeacherSubmissionDocument(row) {
   };
 }
 
-function getTeacherSubmissionRow(submissionId) {
-  return db.prepare(
+async function getTeacherSubmissionRow(submissionId) {
+  return await db.prepare(
     "SELECT s.*, c.name AS child_name, c.grade, c.caregiver, c.interests, " +
     "t.title AS task_title, t.task_type, t.week_start, t.child_id AS task_child_id, " +
     "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count, " +
@@ -603,18 +475,18 @@ function getTeacherSubmissionRow(submissionId) {
 }
 
 async function upsertTeacherSubmissionVector(submissionId) {
-  const row = getTeacherSubmissionRow(submissionId);
+  const row = await getTeacherSubmissionRow(submissionId);
   const doc = row ? buildTeacherSubmissionDocument(row) : null;
   if (!doc) return { indexed: false, embedded: false };
 
   const contentHash = crypto.createHash("sha256").update(doc.content).digest("hex");
-  const old = db.prepare(
+  const old = await db.prepare(
     "SELECT embedding, embedding_model, embedding_provider, content_hash " +
     "FROM ai_vector_documents WHERE namespace = 'teacher' AND doc_key = ?"
   ).get(doc.docKey);
   const unchanged = old && old.content_hash === contentHash;
   const existingEmbedding = old && old.embedding ? old.embedding : "[]";
-  db.prepare(
+  await db.prepare(
     "INSERT INTO ai_vector_documents " +
     "(namespace, doc_key, doc_type, ref_id, title, content, metadata, embedding, embedding_model, embedding_provider, content_hash, updated_at) " +
     "VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime')) " +
@@ -638,7 +510,7 @@ async function upsertTeacherSubmissionVector(submissionId) {
   try {
     const vector = (await requestZhipuEmbeddings([doc.content]))[0] || [];
     if (!vector.length) return { indexed: true, embedded: false };
-    db.prepare(
+    await db.prepare(
       "UPDATE ai_vector_documents SET embedding=?, embedding_model=?, embedding_provider='zhipu', " +
       "updated_at=datetime('now','localtime') WHERE namespace='teacher' AND doc_key=?"
     ).run(JSON.stringify(vector), getZhipuEmbeddingModel(), doc.docKey);
@@ -661,13 +533,13 @@ const BEHAVIOR_TYPE_NAMES = {
   questionnaire_viewed: "查看问卷"
 };
 
-function buildTeacherKnowledgeDocuments() {
+async function buildTeacherKnowledgeDocuments() {
   const weekStart = mondayOf(new Date());
-  const children = getTeacherVisibleChildren();
-  const tasks = db.prepare(
+  const children = await getTeacherVisibleChildren();
+  const tasks = await db.prepare(
     "SELECT t.*, c.name AS child_name FROM tasks t LEFT JOIN children c ON c.id = t.child_id ORDER BY t.id DESC"
   ).all();
-  const submissions = db.prepare(
+  const submissions = await db.prepare(
     "SELECT s.*, c.name AS child_name, c.grade, c.caregiver, c.interests, " +
     "t.title AS task_title, t.task_type, t.week_start, t.child_id AS task_child_id, " +
     "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count, " +
@@ -725,7 +597,7 @@ function buildTeacherKnowledgeDocuments() {
   const behaviorSinceText = behaviorSince.getFullYear() + "-" +
     String(behaviorSince.getMonth() + 1).padStart(2, "0") + "-" +
     String(behaviorSince.getDate()).padStart(2, "0") + " 00:00:00";
-  const behaviorRows = db.prepare(
+  const behaviorRows = await db.prepare(
     "SELECT e.event_type, e.child_id, e.created_at, c.name AS child_name " +
     "FROM events e JOIN children c ON c.id = e.child_id " +
     "WHERE e.created_at >= ? AND " + realStudentWhere("c") + " ORDER BY e.id DESC"
@@ -780,15 +652,15 @@ function buildTeacherKnowledgeDocuments() {
     metadata: { weekStart: weekStart }
   });
 
-  children.forEach(function (child) {
+  for (const child of children) {
     const answers = parseJsonField(child.q_answers);
-    const parentNames = teacherParentInfo(child.id);
-    const binding = db.prepare(
+    const parentNames = await teacherParentInfo(child.id);
+    const binding = await db.prepare(
       "SELECT b.user_id FROM bindings b JOIN users u ON u.id = b.user_id " +
       "WHERE b.child_id = ? AND u.role = 'parent' AND u.account NOT IN (" + demoAccountPlaceholders() + ") " +
       "ORDER BY b.id LIMIT 1"
     ).get(child.id, ...demoParams(1));
-    const engagement = binding ? getParentEngagement(binding.user_id, child.id) : null;
+    const engagement = binding ? await getParentEngagement(binding.user_id, child.id) : null;
     const childSubs = submissions.filter(function (row) { return row.child_id === child.id; });
     docs.push({
       docKey: "student:" + child.id,
@@ -808,7 +680,7 @@ function buildTeacherKnowledgeDocuments() {
       ].join("\n"),
       metadata: { childId: child.id, childName: child.name, weekStart: weekStart }
     });
-  });
+  }
 
   tasks.forEach(function (task) {
     docs.push({
@@ -868,21 +740,22 @@ function cosineSimilarity(a, b) {
 }
 
 async function syncTeacherVectorIndex() {
-  const docs = buildTeacherKnowledgeDocuments();
+  const docs = await buildTeacherKnowledgeDocuments();
   const currentKeys = new Set(docs.map(function (doc) { return doc.docKey; }));
-  const existing = new Map(db.prepare(
+  const existingRows = await db.prepare(
     "SELECT * FROM ai_vector_documents WHERE namespace = 'teacher'"
-  ).all().map(function (row) { return [row.doc_key, row]; }));
+  ).all();
+  const existing = new Map(existingRows.map(function (row) { return [row.doc_key, row]; }));
   const apiKey = getZhipuApiKey();
   const model = getZhipuEmbeddingModel();
   const toEmbed = [];
 
-  docs.forEach(function (doc) {
+  for (const doc of docs) {
     const contentHash = crypto.createHash("sha256").update(doc.content).digest("hex");
     const old = existing.get(doc.docKey);
     const oldEmbedding = old && old.embedding ? old.embedding : "[]";
     const unchanged = old && old.content_hash === contentHash;
-    db.prepare(
+    await db.prepare(
       "INSERT INTO ai_vector_documents " +
       "(namespace, doc_key, doc_type, ref_id, title, content, metadata, embedding, embedding_model, embedding_provider, content_hash, updated_at) " +
       "VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime')) " +
@@ -895,13 +768,13 @@ async function syncTeacherVectorIndex() {
       contentHash
     );
     if (apiKey && (!unchanged || !oldEmbedding || oldEmbedding === "[]")) toEmbed.push(doc);
-  });
+  }
 
-  existing.forEach(function (row, key) {
+  for (const [key] of existing) {
     if (!currentKeys.has(key)) {
-      db.prepare("DELETE FROM ai_vector_documents WHERE namespace = 'teacher' AND doc_key = ?").run(key);
+      await db.prepare("DELETE FROM ai_vector_documents WHERE namespace = 'teacher' AND doc_key = ?").run(key);
     }
-  });
+  }
 
   let embeddedCount = 0;
   if (apiKey) {
@@ -909,14 +782,15 @@ async function syncTeacherVectorIndex() {
       const batch = toEmbed.slice(i, i + 24);
       try {
         const vectors = await requestZhipuEmbeddings(batch.map(function (doc) { return doc.content; }));
-        batch.forEach(function (doc, index) {
+        for (let index = 0; index < batch.length; index++) {
+          const doc = batch[index];
           const vector = vectors[index] || [];
-          if (!vector.length) return;
-          db.prepare(
+          if (!vector.length) continue;
+          await db.prepare(
             "UPDATE ai_vector_documents SET embedding=?, embedding_model=?, embedding_provider='zhipu', updated_at=datetime('now','localtime') WHERE doc_key=?"
           ).run(JSON.stringify(vector), model, doc.docKey);
           embeddedCount++;
-        });
+        }
       } catch (e) {
         console.warn("向量索引更新失败，将使用关键词检索：", e.message);
         break;
@@ -927,7 +801,7 @@ async function syncTeacherVectorIndex() {
 }
 
 async function searchTeacherKnowledge(question, limit) {
-  const rows = db.prepare(
+  const rows = await db.prepare(
     "SELECT * FROM ai_vector_documents WHERE namespace = 'teacher'"
   ).all();
   if (!rows.length) return [];
@@ -1016,11 +890,11 @@ async function generateTeacherChatAnswer(question, history, docs) {
   ], { maxTokens: 1000, temperature: 0.3 });
 }
 
-function answerTeacherMetricQuestion(question) {
+async function answerTeacherMetricQuestion(question) {
   const text = String(question || "");
   if (!/(未点评|待点评|优先.*点评|点评.*优先|还有.*点评)/.test(text)) return null;
   const weekStart = mondayOf(new Date());
-  const rows = db.prepare(
+  const rows = await db.prepare(
     "SELECT s.id, s.created_at, s.content, c.name AS child_name, t.title AS task_title, " +
     "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count " +
     "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
@@ -1047,24 +921,24 @@ function answerTeacherMetricQuestion(question) {
 }
 
 /* ============ 种子数据（演示用，幂等） ============ */
-function seed() {
-  const hasDemo = db.prepare("SELECT id FROM users WHERE account = 'demo'").get();
+async function seed() {
+  const hasDemo = await db.prepare("SELECT id FROM users WHERE account = 'demo'").get();
   var demoUserId, teacherId, childId;
 
   if (!hasDemo) {
-    demoUserId = db.prepare(
+    demoUserId = await db.prepare(
       "INSERT INTO users (account, password_hash, display_name, role) VALUES (?, ?, ?, 'parent')"
     ).run("demo", hashPassword("123456"), "李女士").lastInsertRowid;
 
-    teacherId = db.prepare(
+    teacherId = await db.prepare(
       "INSERT INTO users (account, password_hash, display_name, role) VALUES (?, ?, ?, 'teacher')"
     ).run("018", hashPassword("018018"), "王老师").lastInsertRowid;
 
-    childId = db.prepare("INSERT INTO children (name, grade) VALUES (?, ?)").run("小明", "三年级").lastInsertRowid;
-    db.prepare("INSERT INTO bindings (user_id, child_id, relation) VALUES (?, ?, '妈妈')").run(demoUserId, childId);
+    childId = await db.prepare("INSERT INTO children (name, grade) VALUES (?, ?)").run("小明", "三年级").lastInsertRowid;
+    await db.prepare("INSERT INTO bindings (user_id, child_id, relation) VALUES (?, ?, '妈妈')").run(demoUserId, childId);
 
     // 上周任务 + 已完成的提交 + 老师反馈（用于演示成长时间线）
-    const lastTaskId = db.prepare(
+    const lastTaskId = await db.prepare(
       "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by) VALUES (?,?,?,?,?,?,?,?,?)"
     ).run(
       "家庭观察：一起种一颗豆子",
@@ -1075,16 +949,16 @@ function seed() {
       15, "观察探究", lastMondayOf(new Date()), teacherId
     ).lastInsertRowid;
 
-    const subId = db.prepare(
+    const subId = await db.prepare(
       "INSERT INTO submissions (task_id, child_id, content, sub_type) VALUES (?,?,?,?)"
     ).run(lastTaskId, childId, "豆子发芽了！小明每天早上都先去看它，还画了三张观察图。", "text").lastInsertRowid;
 
-    db.prepare(
+    await db.prepare(
       "INSERT INTO feedback (submission_id, teacher_id, comment, tags, read_at) VALUES (?,?,?,?,datetime('now','localtime'))"
     ).run(subId, teacherId, "坚持观察一整周，非常棒！小明的三张图记录得很细致。", "观察力,坚持");
   } else {
     demoUserId = hasDemo.id;
-    var tRow = db.prepare("SELECT id FROM users WHERE account = '018'").get();
+    var tRow = await db.prepare("SELECT id FROM users WHERE account = '018'").get();
     teacherId = tRow ? tRow.id : null;
   }
 
@@ -1098,40 +972,40 @@ function seed() {
   ];
 
   // 补充小明的档案信息（原种子数据只创建了 name+grade）
-  var ming = db.prepare("SELECT id FROM children WHERE name = '小明'").get();
+  var ming = await db.prepare("SELECT id FROM children WHERE name = '小明'").get();
   if (ming) {
-    var mingHas = db.prepare("SELECT caregiver FROM children WHERE id = ?").get(ming.id);
+    var mingHas = await db.prepare("SELECT caregiver FROM children WHERE id = ?").get(ming.id);
     if (mingHas && !mingHas.caregiver) {
-      db.prepare("UPDATE children SET gender='男', age=8, caregiver='妈妈', interests='阅读,观察' WHERE id=?").run(ming.id);
-      var qExist = db.prepare("SELECT id FROM questionnaires WHERE child_id = ?").get(ming.id);
+      await db.prepare("UPDATE children SET gender='男', age=8, caregiver='妈妈', interests='阅读,观察' WHERE id=?").run(ming.id);
+      var qExist = await db.prepare("SELECT id FROM questionnaires WHERE child_id = ?").get(ming.id);
       if (!qExist) {
-        db.prepare("INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)")
+        await db.prepare("INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)")
           .run(demoUserId, ming.id, JSON.stringify({ timeAvailable: "充足", familyNote: "", interests: "阅读,观察" }));
       }
     }
   }
 
   var extraChildIds = {};
-  extraStudents.forEach(function (es) {
-    var exist = db.prepare("SELECT id FROM children WHERE name = ?").get(es.name);
+  for (const es of extraStudents) {
+    var exist = await db.prepare("SELECT id FROM children WHERE name = ?").get(es.name);
     if (exist) { extraChildIds[es.name] = exist.id; return; }
-    var cid = db.prepare(
+    var cid = await db.prepare(
       "INSERT INTO children (name, grade, gender, age, caregiver, interests, family_note) VALUES (?,?,?,?,?,?,?)"
     ).run(es.name, es.grade, es.gender, es.age, es.caregiver, es.interests, es.familyNote).lastInsertRowid;
     // 创建对应的问卷记录
-    db.prepare("INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)")
+    await db.prepare("INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)")
       .run(demoUserId, cid, JSON.stringify({ timeAvailable: es.timeAvailable, familyNote: es.familyNote, interests: es.interests }));
     extraChildIds[es.name] = cid;
-  });
+  }
 
   // ===== 本周班级任务 =====
   var thisWeek = mondayOf(new Date());
-  var weekTaskExist = db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id IS NULL").get(thisWeek);
+  var weekTaskExist = await db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id IS NULL").get(thisWeek);
   var weekTaskId;
   if (weekTaskExist) {
     weekTaskId = weekTaskExist.id;
   } else {
-    weekTaskId = db.prepare(
+    weekTaskId = await db.prepare(
       "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by) VALUES (?,?,?,?,?,?,?,?,?)"
     ).run(
       "亲子共读：共读一本好书", "营造家庭阅读氛围，培养孩子表达与思考能力",
@@ -1142,17 +1016,17 @@ function seed() {
   }
 
   // 小红已提交（待点评）
-  var subExist1 = db.prepare("SELECT id FROM submissions WHERE task_id = ? AND child_id = ?").get(weekTaskId, extraChildIds["小红"]);
+  var subExist1 = await db.prepare("SELECT id FROM submissions WHERE task_id = ? AND child_id = ?").get(weekTaskId, extraChildIds["小红"]);
   if (!subExist1) {
-    var subId2 = db.prepare(
+    var subId2 = await db.prepare(
       "INSERT INTO submissions (task_id, child_id, content, sub_type) VALUES (?,?,?,?)"
     ).run(weekTaskId, extraChildIds["小红"], "和小红一起读了《猜猜我有多爱你》，她特别喜欢里面比较谁更爱谁的情节，还画了一幅画。", "text").lastInsertRowid;
   }
 
   // 给小刚发布一个个性化任务（祖辈带养适配）
-  var personalTaskExist = db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id = ?").get(thisWeek, extraChildIds["小刚"]);
+  var personalTaskExist = await db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id = ?").get(thisWeek, extraChildIds["小刚"]);
   if (!personalTaskExist) {
-    db.prepare(
+    await db.prepare(
       "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by, child_id) VALUES (?,?,?,?,?,?,?,?,?,?)"
     ).run(
       "和奶奶一起散步计数", "适合祖辈带养，通过简单散步增进祖孙互动",
@@ -1162,7 +1036,7 @@ function seed() {
     ).lastInsertRowid;
   }
 }
-seed();
+const databaseReady = initializeDatabase(db).then(seed);
 
 /* ============ API 路由 ============ */
 async function handleApi(req, res, pathname, query) {
@@ -1175,13 +1049,13 @@ async function handleApi(req, res, pathname, query) {
     if (account.length < 3) return sendJson(res, 400, { message: "账号至少 3 个字符" });
     if (password.length < 6) return sendJson(res, 400, { message: "密码至少 6 位" });
     if (!displayName) return sendJson(res, 400, { message: "请填写称呼" });
-    if (db.prepare("SELECT id FROM users WHERE account = ?").get(account)) {
+    if (await db.prepare("SELECT id FROM users WHERE account = ?").get(account)) {
       return sendJson(res, 409, { message: "该账号已被注册" });
     }
-    const userId = db.prepare(
+    const userId = await db.prepare(
       "INSERT INTO users (account, password_hash, display_name, role) VALUES (?,?,?, 'parent')"
     ).run(account, hashPassword(password), displayName).lastInsertRowid;
-    const token = createSession(userId);
+    const token = await createSession(userId);
     return sendJson(res, 200, { token, user: { account, displayName, role: "parent" } });
   }
 
@@ -1190,11 +1064,11 @@ async function handleApi(req, res, pathname, query) {
     const body = await readBody(req);
     const account = String(body.account || "").trim();
     const password = String(body.password || "");
-    const user = db.prepare("SELECT * FROM users WHERE account = ?").get(account);
+    const user = await db.prepare("SELECT * FROM users WHERE account = ?").get(account);
     if (!user || !verifyPassword(password, user.password_hash)) {
       return sendJson(res, 401, { message: "账号或密码错误" });
     }
-    const token = createSession(user.id);
+    const token = await createSession(user.id);
     return sendJson(res, 200, {
       token,
       user: { account: user.account, displayName: user.display_name, role: user.role }
@@ -1202,12 +1076,12 @@ async function handleApi(req, res, pathname, query) {
   }
 
   /* ---- 以下接口均需登录 ---- */
-  const user = getAuthUser(req);
+  const user = await getAuthUser(req);
   if (!user) return sendJson(res, 401, { message: "请先登录" });
 
   if (req.method === "POST" && pathname === "/api/auth/logout") {
     const token = req.headers["authorization"].slice(7);
-    db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+    await db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
     return sendJson(res, 200, { ok: true });
   }
 
@@ -1218,8 +1092,8 @@ async function handleApi(req, res, pathname, query) {
     const childId = body.childId ? Number(body.childId) : null;
     const taskId = body.taskId ? Number(body.taskId) : null;
     if (!eventType) return sendJson(res, 400, { message: "缺少事件类型" });
-    if (childId && !canAccessChild(user, childId)) return sendJson(res, 403, { message: "无权记录该孩子事件" });
-    logEvent(user, eventType, childId, taskId, body.meta || {});
+    if (childId && !(await canAccessChild(user, childId))) return sendJson(res, 403, { message: "无权记录该孩子事件" });
+    await logEvent(user, eventType, childId, taskId, body.meta || {});
     return sendJson(res, 200, { ok: true });
   }
 
@@ -1230,16 +1104,16 @@ async function handleApi(req, res, pathname, query) {
     const name = String(body.name || "").trim();
     const grade = String(body.grade || "").trim();
     if (!name) return sendJson(res, 400, { message: "请填写孩子姓名/昵称" });
-    const childId = db.prepare("INSERT INTO children (name, grade) VALUES (?,?)").run(name, grade).lastInsertRowid;
-    db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, childId);
-    const child = db.prepare("SELECT * FROM children WHERE id = ?").get(childId);
+    const childId = await db.prepare("INSERT INTO children (name, grade) VALUES (?,?)").run(name, grade).lastInsertRowid;
+    await db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, childId);
+    const child = await db.prepare("SELECT * FROM children WHERE id = ?").get(childId);
     return sendJson(res, 200, { child });
   }
 
   /* ---- 首页聚合数据 ---- */
   if (req.method === "GET" && pathname === "/api/home") {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可访问家庭首页" });
-    const children = db.prepare(
+    const children = await db.prepare(
       "SELECT c.* FROM children c JOIN bindings b ON b.child_id = c.id WHERE b.user_id = ? ORDER BY c.id"
     ).all(user.id);
     const childId = query.get("childId") ? Number(query.get("childId")) : (children[0] && children[0].id);
@@ -1251,29 +1125,29 @@ async function handleApi(req, res, pathname, query) {
                      needQuestionnaire: false, engagement: null, engagementEnabled: true };
     if (!child) {
       // 首次登录的家长（无孩子且未填问卷）→ 前端跳转问卷页
-      const qFilled = db.prepare("SELECT id FROM questionnaires WHERE user_id = ?").get(user.id);
+      const qFilled = await db.prepare("SELECT id FROM questionnaires WHERE user_id = ?").get(user.id);
       result.needQuestionnaire = user.role === "parent" && !qFilled;
       return sendJson(res, 200, result);
     }
-    result.engagementEnabled = getEngagementPreference(user.id, child.id);
-    result.engagement = result.engagementEnabled ? getParentEngagement(user.id, child.id) : null;
+    result.engagementEnabled = await getEngagementPreference(user.id, child.id);
+    result.engagement = result.engagementEnabled ? await getParentEngagement(user.id, child.id) : null;
 
     // 本周任务：优先个人任务，其次班级任务
-    let task = db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id = ? ORDER BY id DESC LIMIT 1")
+    let task = await db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id = ? ORDER BY id DESC LIMIT 1")
       .get(mondayOf(new Date()), child.id);
     if (!task) {
-      task = db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1")
+      task = await db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1")
         .get(mondayOf(new Date()));
     }
     if (task) {
-      const sub = db.prepare(
+      const sub = await db.prepare(
         "SELECT * FROM submissions WHERE task_id = ? AND child_id = ? ORDER BY id DESC LIMIT 1"
       ).get(task.id, child.id);
       let status = "ongoing";
       if (sub) {
         status = sub.status === "draft" ? "draft" : "submitted";
         if (sub.status !== "draft") {
-          const fb = db.prepare("SELECT * FROM feedback WHERE submission_id = ? ORDER BY id DESC LIMIT 1").get(sub.id);
+          const fb = await db.prepare("SELECT * FROM feedback WHERE submission_id = ? ORDER BY id DESC LIMIT 1").get(sub.id);
           if (fb) status = "done";
         }
       }
@@ -1283,23 +1157,23 @@ async function handleApi(req, res, pathname, query) {
     }
 
     // 最新反馈 + 未读数
-    result.feedback = db.prepare(
+    result.feedback = await db.prepare(
       "SELECT f.*, u.display_name AS teacher_name, t.title AS task_title FROM feedback f " +
       "JOIN submissions s ON s.id = f.submission_id " +
       "LEFT JOIN users u ON u.id = f.teacher_id " +
       "JOIN tasks t ON t.id = s.task_id " +
       "WHERE s.child_id = ? ORDER BY f.id DESC LIMIT 1"
     ).get(child.id) || null;
-    result.unreadCount = db.prepare(
+    result.unreadCount = await db.prepare(
       "SELECT COUNT(*) AS n FROM feedback f JOIN submissions s ON s.id = f.submission_id " +
       "WHERE s.child_id = ? AND f.read_at IS NULL"
     ).get(child.id).n;
 
     // 时间线统计
-    result.timeline.taskCount = db.prepare(
+    result.timeline.taskCount = await db.prepare(
       "SELECT COUNT(DISTINCT task_id) AS n FROM submissions WHERE child_id = ? AND status = 'submitted'"
     ).get(child.id).n;
-    result.timeline.workCount = db.prepare(
+    result.timeline.workCount = await db.prepare(
       "SELECT COUNT(*) AS n FROM submissions WHERE child_id = ? AND status = 'submitted'"
     ).get(child.id).n;
 
@@ -1332,14 +1206,14 @@ async function handleApi(req, res, pathname, query) {
     if (!caregiver) return sendJson(res, 400, { message: "请选择主要陪伴人" });
 
     // 问卷完成即创建孩子档案并绑定
-    const childId = db.prepare(
+    const childId = await db.prepare(
       "INSERT INTO children (name, grade, gender, age, caregiver, interests, family_note) VALUES (?,?,?,?,?,?,?)"
     ).run(name, grade, gender, age, caregiver, interests, familyNote).lastInsertRowid;
-    db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, childId);
-    db.prepare(
+    await db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, childId);
+    await db.prepare(
       "INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)"
     ).run(user.id, childId, JSON.stringify({ timeAvailable, familyNote, interests }));
-    return sendJson(res, 200, { child: db.prepare("SELECT * FROM children WHERE id = ?").get(childId) });
+    return sendJson(res, 200, { child: await db.prepare("SELECT * FROM children WHERE id = ?").get(childId) });
   }
 
   /* ---- 提交作品 ---- */
@@ -1360,8 +1234,8 @@ async function handleApi(req, res, pathname, query) {
       : "[]";
     if (!taskId || !childId) return sendJson(res, 400, { message: "缺少任务或孩子信息" });
     if (status === "submitted" && !content) return sendJson(res, 400, { message: "请填写提交内容" });
-    if (!canAccessChild(user, childId)) return sendJson(res, 403, { message: "尚未绑定该孩子" });
-    const task = getVisibleTask(taskId, childId);
+    if (!(await canAccessChild(user, childId))) return sendJson(res, 403, { message: "尚未绑定该孩子" });
+    const task = await getVisibleTask(taskId, childId);
     if (!task) return sendJson(res, 403, { message: "该任务不属于当前孩子" });
 
     // ---- 提交行为增强元数据（素材类型 / 内容长度 / 编辑轮次） ----
@@ -1371,7 +1245,7 @@ async function handleApi(req, res, pathname, query) {
       const t = String((a && a.type) || "").split("/")[0];
       if (t && attachmentTypes.indexOf(t) < 0) attachmentTypes.push(t);
     });
-    const priorDraftCount = db.prepare(
+    const priorDraftCount = await db.prepare(
       "SELECT COUNT(*) AS n FROM events WHERE event_type = 'submission_drafted' AND child_id = ? AND task_id = ?"
     ).get(childId, taskId).n;
     const eventMeta = {
@@ -1384,29 +1258,29 @@ async function handleApi(req, res, pathname, query) {
     else eventMeta.draftsBeforeSubmit = priorDraftCount;
     const eventType = status === "draft" ? "submission_drafted" : "submission_submitted";
 
-    const existingSubmitted = db.prepare(
+    const existingSubmitted = await db.prepare(
       "SELECT id FROM submissions WHERE task_id = ? AND child_id = ? AND status = 'submitted' ORDER BY id DESC LIMIT 1"
     ).get(taskId, childId);
     if (existingSubmitted && status === "submitted") {
       return sendJson(res, 409, { message: "该任务已提交，请勿重复提交" });
     }
 
-    const draft = db.prepare(
+    const draft = await db.prepare(
       "SELECT id FROM submissions WHERE task_id = ? AND child_id = ? AND status = 'draft' ORDER BY id DESC LIMIT 1"
     ).get(taskId, childId);
     if (draft) {
-      db.prepare(
+      await db.prepare(
         "UPDATE submissions SET content = ?, sub_type = ?, status = ?, attachments = ?, created_at = datetime('now','localtime') WHERE id = ?"
       ).run(content, subType, status, attachments, draft.id);
-      logEvent(user, eventType, childId, taskId, eventMeta);
+      await logEvent(user, eventType, childId, taskId, eventMeta);
       const vector = status === "submitted" && content ? await upsertTeacherSubmissionVector(draft.id) : null;
       return sendJson(res, 200, { id: draft.id, ok: true, status, vectorIndexed: !!(vector && vector.indexed) });
     }
 
-    const id = db.prepare(
+    const id = await db.prepare(
       "INSERT INTO submissions (task_id, child_id, content, sub_type, status, attachments) VALUES (?,?,?,?,?,?)"
     ).run(taskId, childId, content, subType, status, attachments).lastInsertRowid;
-    logEvent(user, eventType, childId, taskId, eventMeta);
+    await logEvent(user, eventType, childId, taskId, eventMeta);
     const vector = status === "submitted" && content ? await upsertTeacherSubmissionVector(id) : null;
     return sendJson(res, 200, { id, ok: true, status, vectorIndexed: !!(vector && vector.indexed) });
   }
@@ -1415,8 +1289,8 @@ async function handleApi(req, res, pathname, query) {
   if (req.method === "GET" && pathname === "/api/timeline") {
     const childId = query.get("childId") ? Number(query.get("childId")) : null;
     if (!childId) return sendJson(res, 400, { message: "缺少 childId" });
-    if (!canAccessChild(user, childId)) return sendJson(res, 403, { message: "无权访问该孩子时间线" });
-    const items = db.prepare(
+    if (!(await canAccessChild(user, childId))) return sendJson(res, 403, { message: "无权访问该孩子时间线" });
+    const items = await db.prepare(
       "SELECT s.id, s.content, s.sub_type, s.attachments, s.created_at, t.title, t.task_type, t.week_start, " +
       "f.id AS feedback_id, f.comment AS feedback_comment, f.tags AS feedback_tags, f.created_at AS feedback_at, " +
       "u.display_name AS teacher_name " +
@@ -1427,11 +1301,11 @@ async function handleApi(req, res, pathname, query) {
       "WHERE s.child_id = ? AND s.status = 'submitted' ORDER BY s.id DESC"
     ).all(childId);
     // 标记该孩子的反馈为已读
-    db.prepare(
+    await db.prepare(
       "UPDATE feedback SET read_at = datetime('now','localtime') WHERE read_at IS NULL AND submission_id IN " +
       "(SELECT id FROM submissions WHERE child_id = ?)"
     ).run(childId);
-    logEvent(user, "timeline_viewed", childId, null, {});
+    await logEvent(user, "timeline_viewed", childId, null, {});
     return sendJson(res, 200, { items });
   }
 
@@ -1439,13 +1313,13 @@ async function handleApi(req, res, pathname, query) {
   if (req.method === "GET" && pathname === "/api/parent/engagement") {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可查看自己的关注记录" });
     const childId = query.get("childId") ? Number(query.get("childId")) : null;
-    if (!childId || !canAccessChild(user, childId)) {
+    if (!childId || !(await canAccessChild(user, childId))) {
       return sendJson(res, 403, { message: "无权访问该孩子的关注记录" });
     }
-    const child = db.prepare("SELECT id, name, grade FROM children WHERE id = ?").get(childId);
-    const engagement = getParentEngagement(user.id, childId);
-    const enabled = getEngagementPreference(user.id, childId);
-    logEvent(user, "engagement_page_viewed", childId, null, {});
+    const child = await db.prepare("SELECT id, name, grade FROM children WHERE id = ?").get(childId);
+    const engagement = await getParentEngagement(user.id, childId);
+    const enabled = await getEngagementPreference(user.id, childId);
+    await logEvent(user, "engagement_page_viewed", childId, null, {});
     return sendJson(res, 200, {
       child: child,
       engagement: engagement,
@@ -1467,15 +1341,15 @@ async function handleApi(req, res, pathname, query) {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可修改关注分析设置" });
     const body = await readBody(req);
     const childId = Number(body.childId);
-    if (!childId || !canAccessChild(user, childId)) {
+    if (!childId || !(await canAccessChild(user, childId))) {
       return sendJson(res, 403, { message: "无权修改该孩子的关注分析设置" });
     }
     const enabled = body.enabled === false ? 0 : 1;
-    db.prepare(
+    await db.prepare(
       "INSERT INTO engagement_preferences (user_id, child_id, enabled, updated_at) VALUES (?,?,?,datetime('now','localtime')) " +
       "ON CONFLICT(user_id, child_id) DO UPDATE SET enabled=excluded.enabled, updated_at=excluded.updated_at"
     ).run(user.id, childId, enabled);
-    logEvent(user, enabled ? "engagement_analysis_enabled" : "engagement_analysis_disabled", childId, null, {});
+    await logEvent(user, enabled ? "engagement_analysis_enabled" : "engagement_analysis_disabled", childId, null, {});
     return sendJson(res, 200, { ok: true, enabled: !!enabled });
   }
 
@@ -1483,12 +1357,12 @@ async function handleApi(req, res, pathname, query) {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可反馈关注分析结果" });
     const body = await readBody(req);
     const childId = Number(body.childId);
-    if (!childId || !canAccessChild(user, childId)) {
+    if (!childId || !(await canAccessChild(user, childId))) {
       return sendJson(res, 403, { message: "无权反馈该孩子的关注分析结果" });
     }
     const choice = String(body.choice || "").slice(0, 80);
     if (!choice) return sendJson(res, 400, { message: "缺少反馈内容" });
-    logEvent(user, "engagement_judgment_corrected", childId, null, { choice: choice });
+    await logEvent(user, "engagement_judgment_corrected", childId, null, { choice: choice });
     return sendJson(res, 200, { ok: true });
   }
 
@@ -1507,7 +1381,7 @@ async function handleApi(req, res, pathname, query) {
     } catch (e) {
       console.warn("教师 AI 索引同步失败：", e.message);
     }
-    const metricAnswer = answerTeacherMetricQuestion(question);
+    const metricAnswer = await answerTeacherMetricQuestion(question);
     if (metricAnswer) {
       return sendJson(res, 200, {
         answer: metricAnswer.answer,
@@ -1551,8 +1425,8 @@ async function handleApi(req, res, pathname, query) {
 
   if (req.method === "GET" && pathname === "/api/teacher/overview") {
     const weekStart = mondayOf(new Date());
-    let task = db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1").get(weekStart);
-    const submissions = db.prepare(
+    let task = await db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1").get(weekStart);
+    const submissions = await db.prepare(
       "SELECT s.id, s.content, s.sub_type, s.attachments, s.created_at, c.name AS child_name, c.grade, t.title, " +
       "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count " +
       "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
@@ -1563,7 +1437,7 @@ async function handleApi(req, res, pathname, query) {
 
   if (req.method === "GET" && pathname === "/api/teacher/students") {
     // 学生档案（含问卷信息），同步给教师端做任务定制参考
-    const students = getTeacherVisibleChildren().map(function (row) {
+    const students = (await getTeacherVisibleChildren()).map(function (row) {
       let answers = {};
       try { answers = JSON.parse(row.q_answers || "{}"); } catch (e) {}
       return {
@@ -1577,11 +1451,11 @@ async function handleApi(req, res, pathname, query) {
 
   if (req.method === "GET" && pathname === "/api/teacher/global-report") {
     const localOnly = query.get("local") === "1";
-    const allChildCount = db.prepare("SELECT COUNT(*) AS n FROM children").get().n;
+    const allChildCount = await db.prepare("SELECT COUNT(*) AS n FROM children").get().n;
     const weekStart = mondayOf(new Date());
-    const allTasks = db.prepare("SELECT id, child_id, week_start FROM tasks").all();
-    const children = getTeacherVisibleChildren();
-    const submissions = db.prepare(
+    const allTasks = await db.prepare("SELECT id, child_id, week_start FROM tasks").all();
+    const children = await getTeacherVisibleChildren();
+    const submissions = await db.prepare(
       "SELECT s.id, s.child_id, s.task_id, s.content, s.sub_type, s.attachments, s.created_at, " +
       "c.name AS child_name, c.grade, c.caregiver, c.interests, t.title AS task_title, " +
       "t.task_type, t.week_start, t.created_at AS task_created_at, " +
@@ -1683,7 +1557,7 @@ async function handleApi(req, res, pathname, query) {
     const avgLagHours = lagCount > 0 ? Math.round(totalLagHours / lagCount) : 0;
 
     // 两段式响应延迟：任务发布 → 首次查看详情 → 提交
-    const firstViewRows = db.prepare(
+    const firstViewRows = await db.prepare(
       "SELECT child_id, task_id, MIN(created_at) AS t FROM events " +
       "WHERE event_type = 'task_detail_viewed' GROUP BY child_id, task_id"
     ).all();
@@ -1749,7 +1623,7 @@ async function handleApi(req, res, pathname, query) {
     const behaviorSinceText = behaviorSince.getFullYear() + "-" +
       String(behaviorSince.getMonth() + 1).padStart(2, "0") + "-" +
       String(behaviorSince.getDate()).padStart(2, "0") + " 00:00:00";
-    const behaviorRows = db.prepare(
+    const behaviorRows = await db.prepare(
       "SELECT e.event_type, e.child_id, e.created_at, c.name AS child_name " +
       "FROM events e JOIN children c ON c.id = e.child_id " +
       "WHERE e.created_at >= ? AND " + realStudentWhere("c") + " ORDER BY e.id DESC"
@@ -1827,7 +1701,8 @@ async function handleApi(req, res, pathname, query) {
         studentSource: "非 demo 家长绑定或问卷产生的真实学生",
         realStudents: children.length,
         filteredDemoStudents: Math.max(0, allChildCount - children.length),
-        storageConfigured: !!process.env.DATA_DIR
+        storageConfigured: db.isPostgres || !!process.env.DATA_DIR,
+        storageMode: db.isPostgres ? "neon" : (process.env.DATA_DIR ? "persistent-disk" : "sqlite")
       },
       stats: {
         totalStudents: children.length,
@@ -1987,18 +1862,18 @@ async function handleApi(req, res, pathname, query) {
   /* ---- 班级规则概览 ---- */
   if (req.method === "GET" && pathname === "/api/teacher/ai-overview") {
     const weekStart = mondayOf(new Date());
-    const allChildren = getTeacherVisibleChildren();
+    const allChildren = await getTeacherVisibleChildren();
     const totalStudents = allChildren.length;
 
-    const classTask = db.prepare(
+    const classTask = await db.prepare(
       "SELECT * FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1"
     ).get(weekStart);
-    const personalTasks = db.prepare(
+    const personalTasks = await db.prepare(
       "SELECT t.* FROM tasks t JOIN children c ON c.id = t.child_id " +
       "WHERE t.week_start = ? AND t.child_id IS NOT NULL AND " + realStudentWhere("c") + " ORDER BY t.id DESC"
     ).all(weekStart, ...demoParams(2));
 
-    const allSubs = db.prepare(
+    const allSubs = await db.prepare(
       "SELECT s.id, s.child_id, c.name AS child_name, c.grade, c.caregiver, t.title AS task_title " +
       "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
       "WHERE t.week_start = ? AND s.status = 'submitted' AND " + realStudentWhere("c") + " ORDER BY s.id DESC"
@@ -2010,10 +1885,10 @@ async function handleApi(req, res, pathname, query) {
 
     // 反馈统计
     let feedbackedCount = 0;
-    allSubs.forEach(function (s) {
-      const n = db.prepare("SELECT COUNT(*) AS n FROM feedback WHERE submission_id = ?").get(s.id).n;
+    for (const s of allSubs) {
+      const n = (await db.prepare("SELECT COUNT(*) AS n FROM feedback WHERE submission_id = ?").get(s.id)).n;
       if (n > 0) feedbackedCount++;
-    });
+    }
     const pendingFeedback = allSubs.length - feedbackedCount;
     const feedbackRate = allSubs.length > 0 ? Math.round(feedbackedCount / allSubs.length * 100) : 0;
 
@@ -2079,26 +1954,27 @@ async function handleApi(req, res, pathname, query) {
       insights.push("班级兴趣热点：" + topInterests.join("、") + "，可据此设计下周任务方向");
     }
 
-    const engagementRows = allChildren.map(function (child) {
-      const binding = db.prepare(
+    const engagementRows = [];
+    for (const child of allChildren) {
+      const binding = await db.prepare(
         "SELECT b.user_id FROM bindings b JOIN users u ON u.id = b.user_id " +
         "WHERE b.child_id = ? AND u.role = 'parent' AND u.account NOT IN (" + demoAccountPlaceholders() + ") " +
         "ORDER BY b.id LIMIT 1"
       ).get(child.id, ...demoParams(1));
-      const enabled = binding ? getEngagementPreference(binding.user_id, child.id) : false;
-      const engagement = binding && enabled ? getParentEngagement(binding.user_id, child.id) : {
+      const enabled = binding ? await getEngagementPreference(binding.user_id, child.id) : false;
+      const engagement = binding && enabled ? await getParentEngagement(binding.user_id, child.id) : {
         windowDays: 30, score: 0, level: "证据不足", status: "insufficient",
         confidence: "低", evidence: [], recommendation: "暂不下结论，先提供一次清晰摘要",
         counts: { touchpoints: 0, exploration: 0, followThrough: 0, activeDays: 0, events: 0 }
       };
-      return {
+      engagementRows.push({
         childId: child.id,
         childName: child.name,
         caregiver: child.caregiver || "",
         enabled: enabled,
         engagement: engagement
-      };
-    });
+      });
+    }
     const engagementSummary = {
       high: engagementRows.filter(function (r) { return r.engagement.status === "high"; }).length,
       medium: engagementRows.filter(function (r) { return r.engagement.status === "medium"; }).length,
@@ -2134,7 +2010,7 @@ async function handleApi(req, res, pathname, query) {
     const childId = query.get("childId") ? Number(query.get("childId")) : null;
     if (!childId) return sendJson(res, 400, { message: "缺少 childId" });
 
-    const student = db.prepare(
+    const student = await db.prepare(
       "SELECT c.*, q.answers AS q_answers FROM children c " +
       latestQuestionnaireJoin() +
       "WHERE c.id = ? AND " + realStudentWhere("c")
@@ -2146,7 +2022,7 @@ async function handleApi(req, res, pathname, query) {
     const timeAvailable = answers.timeAvailable || "";
 
     // 历史提交
-    const history = db.prepare(
+    const history = await db.prepare(
       "SELECT t.task_type FROM submissions s JOIN tasks t ON t.id = s.task_id WHERE s.child_id = ? ORDER BY s.id DESC"
     ).all(childId);
     const completedTypes = [...new Set(history.map(h => h.task_type))];
@@ -2281,9 +2157,9 @@ async function handleApi(req, res, pathname, query) {
     const fallbackPlan = String(body.fallbackPlan || body.fallback_plan || "").trim();
 
     if (childId) {
-      if (!canAccessChild(user, childId)) return sendJson(res, 404, { message: "学生不存在" });
+      if (!(await canAccessChild(user, childId))) return sendJson(res, 404, { message: "学生不存在" });
       // 个人任务：直接新建
-      db.prepare(
+      await db.prepare(
         "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by, child_id, difficulty, materials, fallback_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
       ).run(
         title, String(body.goal || ""), String(body.steps || ""),
@@ -2293,7 +2169,7 @@ async function handleApi(req, res, pathname, query) {
       );
     } else {
       // 班级任务：本周已有则更新
-      const existing = db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1").get(weekStart);
+      const existing = await db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1").get(weekStart);
       const params = [
         title, String(body.goal || ""), String(body.steps || ""),
         String(body.dialogueTips || ""), String(body.submitHint || ""),
@@ -2301,11 +2177,11 @@ async function handleApi(req, res, pathname, query) {
         difficulty, materials, fallbackPlan
       ];
       if (existing) {
-        db.prepare(
+        await db.prepare(
           "UPDATE tasks SET title=?, goal=?, steps=?, dialogue_tips=?, submit_hint=?, duration=?, task_type=?, published_by=?, difficulty=?, materials=?, fallback_plan=? WHERE id=?"
         ).run(params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[8], params[9], params[10], params[11], existing.id);
       } else {
-        db.prepare(
+        await db.prepare(
           "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by, difficulty, materials, fallback_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
         ).run(...params);
       }
@@ -2318,9 +2194,9 @@ async function handleApi(req, res, pathname, query) {
     const submissionId = Number(body.submissionId);
     const comment = String(body.comment || "").trim();
     if (!submissionId || !comment) return sendJson(res, 400, { message: "请填写点评内容" });
-    const submission = db.prepare("SELECT id FROM submissions WHERE id = ? AND status = 'submitted'").get(submissionId);
+    const submission = await db.prepare("SELECT id FROM submissions WHERE id = ? AND status = 'submitted'").get(submissionId);
     if (!submission) return sendJson(res, 404, { message: "提交不存在或尚未正式提交" });
-    db.prepare(
+    await db.prepare(
       "INSERT INTO feedback (submission_id, teacher_id, comment, tags) VALUES (?,?,?,?)"
     ).run(submissionId, user.id, comment, cleanTags(body.tags));
     await upsertTeacherSubmissionVector(submissionId);
@@ -2365,6 +2241,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   const pathname = decodeURIComponent(url.pathname);
   try {
+    await databaseReady;
     if (pathname.startsWith("/api/")) {
       await handleApi(req, res, pathname, url.searchParams);
     } else {
@@ -2377,5 +2254,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log("家校共育系统已启动: http://localhost:" + PORT);
-  console.log("数据库文件: " + path.join(DATA_DIR, "app.db"));
+  console.log(db.isPostgres ? "数据库：Neon PostgreSQL" : "数据库：本地 SQLite");
 });

@@ -4,9 +4,13 @@
   "private": true,
   "description": "家校共育系统 · 后端服务（Render 部署用）",
   "scripts": {
-    "start": "node --experimental-sqlite server.js"
+    "start": "node --experimental-sqlite server.js",
+    "migrate:neon": "node --experimental-sqlite scripts/migrate-sqlite-to-neon.js"
   },
   "engines": {
     "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
   }
 }
