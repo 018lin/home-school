@@ -547,8 +547,13 @@
       notices += '<div class="warn-note">已排除 ' + esc(scope.filteredDemoStudents) +
         ' 条演示学生数据，当前报告仅使用真实家长账号产生的数据。</div>';
     }
-    var corePanel = createAssistantShell(report, options.aiLoading === true) + statHtml + notices;
-    var dataPanel = statHtml;
+    var scopeNotice = "";
+    if ((scope.realStudents || 0) === 0 && (scope.filteredDemoStudents || 0) > 0) {
+      scopeNotice = '<div class="warn-note data-scope-note"><b>当前没有真实家长数据</b>：线上数据库目前只有演示账号产生的学生记录，' +
+        '这些记录已按规则排除。请先让家长使用真实账号注册，并绑定孩子或提交问卷；数据会在真实操作后出现在这里。</div>';
+    }
+    var corePanel = scopeNotice + createAssistantShell(report, options.aiLoading === true) + statHtml + notices;
+    var dataPanel = scopeNotice + statHtml;
     if ((scope.realStudents || 0) === 0) {
       corePanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看 AI 分析。</p>';
       dataPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看数据档案。</p>';
@@ -621,13 +626,6 @@
   }
 
   var aiCacheKey = cacheKey("Report");
-  var cachedAiReport = loadCached(aiCacheKey);
-
-  if (cachedAiReport && cachedAiReport.stats) {
-    // 本次登录已加载过 AI 分析：直接使用缓存结果，AI 交互框不再重新加载
-    renderReport(cachedAiReport, { aiLoading: false, restoreMessages: true });
-    return;
-  }
 
   api("/api/teacher/global-report?local=1").then(function (report) {
     renderReport(report, { aiLoading: !!report.aiEnabled });

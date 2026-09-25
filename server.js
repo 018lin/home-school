@@ -30,7 +30,12 @@ function loadLocalEnv(root) {
 loadLocalEnv(ROOT);
 
 /* ============ 数据库初始化 ============ */
-const DATA_DIR = path.join(ROOT, "data");
+// 线上部署时将 DATA_DIR 指向 Render Persistent Disk，例如 /var/data；
+// 本地未配置时仍使用项目内的 data 目录，避免把用户数据库提交到仓库。
+const configuredDataDir = process.env.DATA_DIR || path.join(ROOT, "data");
+const DATA_DIR = path.isAbsolute(configuredDataDir)
+  ? configuredDataDir
+  : path.resolve(ROOT, configuredDataDir);
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, "app.db"));
 
@@ -1821,7 +1826,8 @@ async function handleApi(req, res, pathname, query) {
       dataScope: {
         studentSource: "非 demo 家长绑定或问卷产生的真实学生",
         realStudents: children.length,
-        filteredDemoStudents: Math.max(0, allChildCount - children.length)
+        filteredDemoStudents: Math.max(0, allChildCount - children.length),
+        storageConfigured: !!process.env.DATA_DIR
       },
       stats: {
         totalStudents: children.length,
