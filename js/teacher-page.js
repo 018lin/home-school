@@ -627,16 +627,32 @@
 
   var aiCacheKey = cacheKey("Report");
 
+  function loadAiReport(baseReport, attempt) {
+    attempt = attempt || 0;
+    return api("/api/teacher/global-report?ai=1").then(function (aiReport) {
+      if (aiReport.aiPending) {
+        renderReport(aiReport, { aiLoading: true });
+        if (attempt < 18) {
+          window.setTimeout(function () { loadAiReport(baseReport, attempt + 1); }, attempt < 3 ? 1200 : 2500);
+        } else {
+          baseReport.aiError = "AI 分析仍在生成中，稍后刷新可查看最新结果";
+          renderReport(baseReport, { aiLoading: false });
+        }
+        return null;
+      }
+      saveCached(aiCacheKey, aiReport);
+      renderReport(aiReport, { aiLoading: false });
+      return aiReport;
+    }).catch(function () {
+      baseReport.aiError = "AI 分析加载失败，当前展示本地规则分析结果";
+      renderReport(baseReport, { aiLoading: false });
+    });
+  }
+
   api("/api/teacher/global-report?local=1").then(function (report) {
     renderReport(report, { aiLoading: !!report.aiEnabled });
     if (!report.aiEnabled) return null;
-    return api("/api/teacher/global-report?ai=1").then(function (aiReport) {
-      saveCached(aiCacheKey, aiReport);
-      renderReport(aiReport, { aiLoading: false });
-    }).catch(function () {
-      report.aiError = "AI 分析加载失败，当前展示本地规则分析结果";
-      renderReport(report, { aiLoading: false });
-    });
+    return loadAiReport(report, 0);
   }).catch(function () {
     document.getElementById("reportBody").innerHTML =
       '<p class="empty">全局报告加载失败，请稍后重试</p>';

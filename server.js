@@ -972,6 +972,116 @@ async function generateZhipuReport(report) {
   return pickJsonObject(content);
 }
 
+const runningTeacherAiReports = new Set();
+const TEACHER_AI_REPORT_CACHE_KEY = "teacher:global-report";
+const TEACHER_AI_REPORT_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const TEACHER_AI_REPORT_ERROR_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+
+function teacherReportContentHash(report) {
+  const stable = {
+    dataScope: report.dataScope,
+    stats: report.stats,
+    dimensions: (report.dimensions || []).map(function (dim) {
+      return {
+        key: dim.key,
+        summary: dim.summary,
+        findings: dim.findings,
+        actions: dim.actions,
+        indicators: dim.indicators,
+        distribution: dim.distribution,
+        weekdayDistribution: dim.weekdayDistribution,
+        rows: dim.rows,
+        samples: dim.samples,
+        latency: dim.latency
+      };
+    })
+  };
+  return crypto.createHash("sha256").update(JSON.stringify(stable)).digest("hex");
+}
+
+function parseCacheTime(value) {
+  const text = String(value || "");
+  const time = Date.parse(text.includes("T") ? text : text.replace(" ", "T"));
+  return Number.isNaN(time) ? 0 : time;
+}
+
+async function getTeacherAiReportCache(cacheKey, contentHash) {
+  const row = await db.prepare(
+    "SELECT * FROM ai_report_cache WHERE cache_key = ? AND content_hash = ? AND status = 'ready'"
+  ).get(cacheKey, contentHash);
+  if (!row) return null;
+  const payload = parseJsonField(row.payload);
+  const maxAge = row.error && !(payload && payload.ai)
+    ? TEACHER_AI_REPORT_ERROR_CACHE_MAX_AGE_MS
+    : TEACHER_AI_REPORT_CACHE_MAX_AGE_MS;
+  if (Date.now() - parseCacheTime(row.updated_at) > maxAge) return null;
+  return payload && payload.stats ? payload : null;
+}
+
+async function saveTeacherAiReportCache(cacheKey, contentHash, payload, status, error) {
+  await db.prepare(
+    "INSERT INTO ai_report_cache (cache_key, content_hash, payload, status, error, updated_at) " +
+    "VALUES (?,?,?,?,?,datetime('now','localtime')) " +
+    "ON CONFLICT(cache_key) DO UPDATE SET content_hash=excluded.content_hash, payload=excluded.payload, " +
+    "status=excluded.status, error=excluded.error, updated_at=excluded.updated_at"
+  ).run(cacheKey, contentHash, JSON.stringify(payload || {}), status || "ready", error || "");
+}
+
+async function buildTeacherAiReportPayload(report) {
+  const payload = JSON.parse(JSON.stringify(report));
+  try {
+    await syncTeacherVectorIndex();
+  } catch (e) {
+    payload.aiError = "向量索引更新失败，已使用本地规则分析";
+  }
+  if (getZhipuApiKey() || process.env.DEEPSEEK_API_KEY) {
+    try {
+      const ai = getZhipuApiKey()
+        ? await generateZhipuReport(payload)
+        : await generateDeepSeekReport(payload);
+      if (ai) {
+        payload.source = getZhipuApiKey() ? "智谱 AI" : "DeepSeek AI";
+        payload.ai = ai;
+        payload.aiGeneratedAt = new Date().toISOString();
+        if (Array.isArray(ai.dimensions)) {
+          payload.dimensions = payload.dimensions.map(function (dim) {
+            const enhanced = ai.dimensions.find(function (d) { return d && d.key === dim.key; });
+            if (!enhanced) return dim;
+            return Object.assign({}, dim, {
+              aiSummary: enhanced.summary || dim.summary,
+              findings: Array.isArray(enhanced.findings) && enhanced.findings.length ? enhanced.findings : dim.findings,
+              actions: Array.isArray(enhanced.actions) && enhanced.actions.length ? enhanced.actions : dim.actions
+            });
+          });
+        }
+      }
+    } catch (e) {
+      payload.aiError = e.message || "AI 分析调用失败，已使用本地规则分析";
+    }
+  }
+  return payload;
+}
+
+function triggerTeacherAiReportRefresh(cacheKey, contentHash, report) {
+  const runningKey = cacheKey + ":" + contentHash;
+  if (runningTeacherAiReports.has(runningKey)) return false;
+  runningTeacherAiReports.add(runningKey);
+  setTimeout(async function () {
+    try {
+      await saveTeacherAiReportCache(cacheKey, contentHash, report, "generating", "");
+      const payload = await buildTeacherAiReportPayload(report);
+      await saveTeacherAiReportCache(cacheKey, contentHash, payload, "ready", payload.aiError || "");
+    } catch (e) {
+      const fallback = Object.assign({}, report, { aiError: e.message || "AI 分析生成失败，已使用本地规则分析" });
+      await saveTeacherAiReportCache(cacheKey, contentHash, fallback, "ready", fallback.aiError);
+      console.warn("教师首页 AI 报告后台生成失败：", e.message);
+    } finally {
+      runningTeacherAiReports.delete(runningKey);
+    }
+  }, 0);
+  return true;
+}
+
 async function generateTeacherChatAnswer(question, history, docs) {
   if (!getZhipuApiKey()) return "";
   const context = docs.map(function (doc, index) {
@@ -2024,37 +2134,19 @@ async function handleApi(req, res, pathname, query) {
 
     if (localOnly) return sendJson(res, 200, report);
 
-    try {
-      await syncTeacherVectorIndex();
-    } catch (e) {
-      report.aiError = "向量索引更新失败，已使用本地规则分析";
+    if (!report.aiEnabled) return sendJson(res, 200, report);
+    const contentHash = teacherReportContentHash(report);
+    const cachedReport = await getTeacherAiReportCache(TEACHER_AI_REPORT_CACHE_KEY, contentHash);
+    if (cachedReport) {
+      cachedReport.aiCached = true;
+      cachedReport.aiPending = false;
+      return sendJson(res, 200, cachedReport);
     }
 
-    if (getZhipuApiKey() || process.env.DEEPSEEK_API_KEY) {
-      try {
-        const ai = getZhipuApiKey()
-          ? await generateZhipuReport(report)
-          : await generateDeepSeekReport(report);
-        if (ai) {
-          report.source = getZhipuApiKey() ? "智谱 AI" : "DeepSeek AI";
-          report.ai = ai;
-          if (Array.isArray(ai.dimensions)) {
-            report.dimensions = report.dimensions.map(function (dim) {
-              const enhanced = ai.dimensions.find(function (d) { return d && d.key === dim.key; });
-              if (!enhanced) return dim;
-              return Object.assign({}, dim, {
-                aiSummary: enhanced.summary || dim.summary,
-                findings: Array.isArray(enhanced.findings) && enhanced.findings.length ? enhanced.findings : dim.findings,
-                actions: Array.isArray(enhanced.actions) && enhanced.actions.length ? enhanced.actions : dim.actions
-              });
-            });
-          }
-        }
-      } catch (e) {
-        report.aiError = e.message || "AI 分析调用失败，已使用本地规则分析";
-      }
-    }
-
+    const started = triggerTeacherAiReportRefresh(TEACHER_AI_REPORT_CACHE_KEY, contentHash, report);
+    report.aiPending = true;
+    report.aiStatus = started ? "generating" : "running";
+    report.aiError = "AI 分析正在后台生成，当前先展示本地规则分析结果";
     return sendJson(res, 200, report);
   }
 
