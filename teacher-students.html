@@ -149,6 +149,7 @@
  if (s.grade) chips += '<span class="chip plain">' + esc(s.grade) + '</span>';
  if (s.caregiver) chips += '<span class="chip">陪伴：' + esc(s.caregiver) + '</span>';
  if (s.timeAvailable) chips += '<span class="chip">时间：' + esc(s.timeAvailable) + '</span>';
+ if (s.taskPreference) chips += '<span class="chip">任务偏好：' + esc(s.taskPreference) + '</span>';
  var interests = (s.interests || "").split(",").filter(function (t) { return t && t.trim(); });
  interests.forEach(function (t) { chips += '<span class="chip">兴趣：' + esc(t.trim()) + '</span>'; });
 

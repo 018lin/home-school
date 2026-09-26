@@ -125,6 +125,7 @@ async function logEvent(user, eventType, childId, taskId, meta) {
 }
 
 const DEMO_PARENT_ACCOUNTS = ["demo"];
+const TASK_PREFERENCE_OPTIONS = ["低负担", "短时长", "高参与度", "长时长"];
 function demoAccountPlaceholders() {
   return DEMO_PARENT_ACCOUNTS.map(function () { return "?"; }).join(",");
 }
@@ -278,6 +279,7 @@ async function generateDeepSeekReport(report) {
         caregiver: row.caregiver || "",
         interests: row.interests || "",
         timeAvailable: row.timeAvailable || "",
+        taskPreference: row.taskPreference || "",
         completeness: row.completeness
       };
     });
@@ -769,7 +771,7 @@ async function buildTeacherKnowledgeDocuments() {
         "性别：" + (child.gender || "未填写") + "；年龄：" + (child.age || "未填写") + "。",
         "主要陪伴人：" + (child.caregiver || "未填写") + "；兴趣：" + (child.interests || "未填写") + "。",
         "家长账号称呼：" + (parentNames.length ? parentNames.join("、") : "未绑定家长") + "。",
-        "家庭可用时间：" + (answers.timeAvailable || "未填写") + "；家庭备注：" + (child.family_note || answers.familyNote || "无") + "。",
+        "家庭可用时间：" + (answers.timeAvailable || "未填写") + "；亲子任务偏好：" + (answers.taskPreference || "未填写") + "；家庭备注：" + (child.family_note || answers.familyNote || "无") + "。",
         "历史正式提交 " + childSubs.length + " 份。",
         engagement ? "近30天站内行为证据：" + engagement.level + "，" + (engagement.evidence.join("、") || "暂无具体证据") + "。建议：" + engagement.recommendation + "。" : "暂无可用的家长站内行为证据。",
         engagement ? "近30天行为计数：触达" + (engagement.counts.touchpoints || 0) + "次、探索" + (engagement.counts.exploration || 0) + "次、执行" + (engagement.counts.followThrough || 0) + "次、活跃" + (engagement.counts.activeDays || 0) + "天、事件共" + (engagement.counts.events || 0) + "次。" : "",
@@ -1067,10 +1069,10 @@ async function seed() {
   // ===== 以下为扩展演示数据，幂等执行，已有数据库也会补全 =====
 
   var extraStudents = [
-    { name: "小红", grade: "三年级", gender: "女", age: 8, caregiver: "妈妈", interests: "阅读,画画", familyNote: "", timeAvailable: "充足" },
-    { name: "小刚", grade: "三年级", gender: "男", age: 9, caregiver: "奶奶", interests: "运动,足球", familyNote: "父母在外地工作，奶奶负责日常照顾", timeAvailable: "有限" },
-    { name: "小丽", grade: "三年级", gender: "女", age: 8, caregiver: "爸爸", interests: "音乐,唱歌", familyNote: "", timeAvailable: "适中" },
-    { name: "小强", grade: "三年级", gender: "男", age: 9, caregiver: "妈妈、爸爸", interests: "科学,自然", familyNote: "", timeAvailable: "充足" }
+    { name: "小红", grade: "三年级", gender: "女", age: 8, caregiver: "妈妈", interests: "阅读,画画", familyNote: "", timeAvailable: "充足", taskPreference: "高参与度" },
+    { name: "小刚", grade: "三年级", gender: "男", age: 9, caregiver: "奶奶", interests: "运动,足球", familyNote: "父母在外地工作，奶奶负责日常照顾", timeAvailable: "有限", taskPreference: "低负担" },
+    { name: "小丽", grade: "三年级", gender: "女", age: 8, caregiver: "爸爸", interests: "音乐,唱歌", familyNote: "", timeAvailable: "适中", taskPreference: "短时长" },
+    { name: "小强", grade: "三年级", gender: "男", age: 9, caregiver: "妈妈、爸爸", interests: "科学,自然", familyNote: "", timeAvailable: "充足", taskPreference: "长时长" }
   ];
 
   // 补充小明的档案信息（原种子数据只创建了 name+grade）
@@ -1082,7 +1084,7 @@ async function seed() {
       var qExist = await db.prepare("SELECT id FROM questionnaires WHERE child_id = ?").get(ming.id);
       if (!qExist) {
         await db.prepare("INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)")
-          .run(demoUserId, ming.id, JSON.stringify({ timeAvailable: "充足", familyNote: "", interests: "阅读,观察" }));
+          .run(demoUserId, ming.id, JSON.stringify({ timeAvailable: "充足", taskPreference: "高参与度", familyNote: "", interests: "阅读,观察" }));
       }
     }
   }
@@ -1096,7 +1098,7 @@ async function seed() {
     ).run(es.name, es.grade, es.gender, es.age, es.caregiver, es.interests, es.familyNote).lastInsertRowid;
     // 创建对应的问卷记录
     await db.prepare("INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)")
-      .run(demoUserId, cid, JSON.stringify({ timeAvailable: es.timeAvailable, familyNote: es.familyNote, interests: es.interests }));
+      .run(demoUserId, cid, JSON.stringify({ timeAvailable: es.timeAvailable, taskPreference: es.taskPreference, familyNote: es.familyNote, interests: es.interests }));
     extraChildIds[es.name] = cid;
   }
 
@@ -1326,6 +1328,7 @@ async function handleApi(req, res, pathname, query) {
     caregivers = [...new Set(caregivers)];
     const caregiver = caregivers.join("、");
     const timeAvailable = String(body.timeAvailable || "");
+    const taskPreference = String(body.taskPreference || "").trim();
     const interests = Array.isArray(body.interests) ? body.interests.filter(Boolean).join(",") : "";
     const familyNote = String(body.familyNote || "").trim();
     const grade = String(body.grade || "").trim();
@@ -1334,6 +1337,7 @@ async function handleApi(req, res, pathname, query) {
     if (!["男", "女"].includes(gender)) return sendJson(res, 400, { message: "请选择孩子性别" });
     if (!age || age < 3 || age > 18) return sendJson(res, 400, { message: "请填写 3-18 之间的年龄" });
     if (!caregiver) return sendJson(res, 400, { message: "请选择主要陪伴人" });
+    if (!TASK_PREFERENCE_OPTIONS.includes(taskPreference)) return sendJson(res, 400, { message: "请选择希望共同完成的任务类型偏好" });
 
     // 问卷完成即创建孩子档案并绑定
     const childId = await db.prepare(
@@ -1342,8 +1346,15 @@ async function handleApi(req, res, pathname, query) {
     await db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, childId);
     await db.prepare(
       "INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)"
-    ).run(user.id, childId, JSON.stringify({ timeAvailable, familyNote, interests }));
-    return sendJson(res, 200, { child: await db.prepare("SELECT * FROM children WHERE id = ?").get(childId) });
+    ).run(user.id, childId, JSON.stringify({ timeAvailable, taskPreference, familyNote, interests }));
+    let vectorIndexed = false;
+    try {
+      const vectorInfo = await syncTeacherVectorIndex();
+      vectorIndexed = !!(vectorInfo && vectorInfo.documentCount);
+    } catch (e) {
+      console.warn("问卷向量索引同步失败：", e.message);
+    }
+    return sendJson(res, 200, { child: await db.prepare("SELECT * FROM children WHERE id = ?").get(childId), vectorIndexed: vectorIndexed });
   }
 
   /* ---- 提交作品 ---- */
@@ -1628,7 +1639,8 @@ async function handleApi(req, res, pathname, query) {
       return {
         id: row.id, name: row.name, grade: row.grade, gender: row.gender, age: row.age,
         caregiver: row.caregiver, interests: row.interests, familyNote: row.family_note,
-        timeAvailable: answers.timeAvailable || ""
+        timeAvailable: answers.timeAvailable || "",
+        taskPreference: answers.taskPreference || ""
       };
     });
     return sendJson(res, 200, { students });
@@ -1693,7 +1705,7 @@ async function handleApi(req, res, pathname, query) {
     let completeProfiles = 0;
     const profileRows = children.map(function (child) {
       const answers = parseAnswers(child);
-      const fields = [child.gender, child.age, child.grade, child.caregiver, child.interests, answers.timeAvailable, child.family_note || answers.familyNote];
+      const fields = [child.gender, child.age, child.grade, child.caregiver, child.interests, answers.timeAvailable, answers.taskPreference, child.family_note || answers.familyNote];
       const filled = fields.filter(function (v) { return v != null && String(v).trim(); }).length;
       if (filled >= 5) completeProfiles++;
       if (child.caregiver) {
@@ -1711,6 +1723,7 @@ async function handleApi(req, res, pathname, query) {
         caregiver: child.caregiver || "",
         interests: child.interests || "",
         timeAvailable: answers.timeAvailable || "",
+        taskPreference: answers.taskPreference || "",
         completeness: pct(filled, fields.length)
       };
     });
@@ -2206,6 +2219,7 @@ async function handleApi(req, res, pathname, query) {
     let answers = {};
     try { answers = JSON.parse(student.q_answers || "{}"); } catch (e) {}
     const timeAvailable = answers.timeAvailable || "";
+    const taskPreference = answers.taskPreference || "";
 
     // 历史提交
     const history = await db.prepare(
@@ -2292,6 +2306,8 @@ async function handleApi(req, res, pathname, query) {
     var baseDuration = 20;
     if (timeAvailable.includes("充足") || timeAvailable.includes("很多") || timeAvailable.includes("多")) baseDuration = 30;
     else if (timeAvailable.includes("有限") || timeAvailable.includes("少") || timeAvailable.includes("很少")) baseDuration = 15;
+    if (taskPreference === "低负担" || taskPreference === "短时长") baseDuration = 15;
+    else if (taskPreference === "长时长") baseDuration = Math.max(baseDuration, 30);
     if (isGrandparent) baseDuration = Math.min(baseDuration, 15);
 
     var suggestions = suggestedTypes.slice(0, 3).map(function (type) {
@@ -2309,6 +2325,7 @@ async function handleApi(req, res, pathname, query) {
         else reasons.push("配合「" + student.caregiver + "」的陪伴方式");
       }
       if (timeAvailable) reasons.push("适配家庭可用时间（" + timeAvailable + "）");
+      if (taskPreference) reasons.push("尊重家长期望的亲子任务特征（" + taskPreference + "）");
       if (completedTypes.includes(type)) reasons.push("孩子已参与过此类任务，建议尝试进阶版本");
       else reasons.push("丰富孩子尚未体验的任务类型");
 
@@ -2325,7 +2342,8 @@ async function handleApi(req, res, pathname, query) {
         id: student.id, name: student.name, grade: student.grade,
         gender: student.gender, age: student.age, caregiver: student.caregiver,
         interests: student.interests, familyNote: student.family_note || "",
-        timeAvailable: timeAvailable
+        timeAvailable: timeAvailable,
+        taskPreference: taskPreference
       },
       suggestions: suggestions,
       history: { totalCompleted: totalCompleted, completedTypes: completedTypes }

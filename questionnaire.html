@@ -54,14 +54,14 @@
  </style><link rel="stylesheet" href="css/refined-ui.css">
 </head><body><div class="wrap"><p class="progress-note">第 1 次登录 · 共 1 步，约 1 分钟完成</p><div class="card"><h1>孩子情况小问卷</h1><p class="desc">了解孩子的基本情况，帮助我们推荐更合适的每周亲子成长任务。</p><p class="privacy-note"> 信息仅用于任务匹配，默认只有老师和学校可见，不会公开展示或用于排名比较。</p><form id="qForm" novalidate><div class="field"><label>孩子昵称</label><input type="text" id="childName" placeholder="如：小明" maxlength="20"></div><div class="row2"><div class="field"><label>性别</label><div class="options" id="genderOptions"><span class="opt" data-value="男">男孩</span><span class="opt" data-value="女">女孩</span></div></div><div class="field"><label>年龄</label><input type="number" id="childAge" placeholder="如：9" min="3" max="18"></div></div><div class="field"><label>年级 <span class="hint">选填</span></label><select id="childGrade"><option value="">请选择年级</option><option>一年级</option><option>二年级</option><option>三年级</option><option>四年级</option><option>五年级</option><option>六年级</option><option>初一</option><option>初二</option><option>初三</option></select></div><div class="field"><label>主要陪伴人 <span class="hint">可多选</span></label><div class="options multi" id="caregiverOptions"><span class="opt" data-value="妈妈">妈妈</span><span class="opt" data-value="爸爸">爸爸</span><span class="opt" data-value="祖辈">祖辈</span><span class="opt" data-value="其他亲属">其他亲属</span><span class="opt" data-value="家人轮流">家人轮流</span><span class="opt" data-value="__other">其他…</span></div><input type="text" id="caregiverOther" placeholder="填写其他陪伴人，如：姑姑、托管老师" maxlength="20"
  style="display:none; margin-top:8px;"></div><div class="field"><label>每周可以一起做任务的时间</label><div class="options" id="timeOptions"><span class="opt" data-value="工作日晚间">工作日晚间</span><span class="opt" data-value="周末白天">周末白天</span><span class="opt" data-value="周末均可">周末均可</span><span class="opt" data-value="时间较少">时间较少，希望任务轻量</span><span class="opt" data-value="__other">其他…</span></div><input type="text" id="timeOther" placeholder="说明你们方便的时间，如：周中19点后、周末上午" maxlength="30"
- style="display:none; margin-top:8px;"></div><div class="field"><label>孩子的兴趣 <span class="hint">可多选</span></label><div class="options multi" id="interestOptions"><span class="opt">阅读</span><span class="opt">运动</span><span class="opt">绘画手工</span><span class="opt">音乐</span><span class="opt">科学实验</span><span class="opt">动物自然</span><span class="opt">棋类</span><span class="opt">做饭家务</span><span class="opt" data-value="__other">其他…</span></div><input type="text" id="interestOther" placeholder="填写其他兴趣，如：编程、摄影" maxlength="20"
+ style="display:none; margin-top:8px;"></div><div class="field"><label>您希望和孩子共同完成的任务应该是？</label><div class="options" id="taskPreferenceOptions"><span class="opt" data-value="低负担">低负担</span><span class="opt" data-value="短时长">短时长</span><span class="opt" data-value="高参与度">高参与度</span><span class="opt" data-value="长时长">长时长</span></div></div><div class="field"><label>孩子的兴趣 <span class="hint">可多选</span></label><div class="options multi" id="interestOptions"><span class="opt">阅读</span><span class="opt">运动</span><span class="opt">绘画手工</span><span class="opt">音乐</span><span class="opt">科学实验</span><span class="opt">动物自然</span><span class="opt">棋类</span><span class="opt">做饭家务</span><span class="opt" data-value="__other">其他…</span></div><input type="text" id="interestOther" placeholder="填写其他兴趣，如：编程、摄影" maxlength="20"
  style="display:none; margin-top:8px;"></div><div class="field"><label>家庭情况说明 <span class="hint">选填，用于提供任务替代方案</span></label><textarea id="familyNote" placeholder="如：平时由爷爷奶奶照顾 / 单亲家庭 / 希望任务不依赖特殊材料…"></textarea></div><p class="form-error" id="formError"></p><button type="submit" class="btn-primary" id="submitBtn">完成，开始使用</button></form></div></div><script src="js/api.js"></script><script>
  (function () {
  "use strict";
  requireAuth();
 
- // 单选组（性别）
- ["genderOptions"].forEach(function (groupId) {
+ // 单选组（性别、任务偏好）
+ ["genderOptions", "taskPreferenceOptions"].forEach(function (groupId) {
  var group = document.getElementById(groupId);
  group.addEventListener("click", function (e) {
  if (e.target.classList.contains("opt")) {
@@ -178,6 +178,8 @@
  }
  return;
  }
+ var taskPreference = getSelected("taskPreferenceOptions");
+ if (!taskPreference) { errEl.textContent = "请选择希望共同完成的任务类型偏好"; return; }
 
  var btn = document.getElementById("submitBtn");
  btn.disabled = true; btn.textContent = "提交中…";
@@ -192,6 +194,7 @@
  caregiver: caregiverInfo.list,
  caregiverOther: caregiverInfo.other,
  timeAvailable: timeAvailable,
+ taskPreference: taskPreference,
  interests: interests,
  familyNote: document.getElementById("familyNote").value.trim()
  }
