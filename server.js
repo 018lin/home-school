@@ -429,10 +429,11 @@ function parseJsonField(value) {
 }
 
 async function teacherParentInfo(childId) {
-  return await db.prepare(
+  const rows = await db.prepare(
     "SELECT u.display_name, b.relation FROM bindings b JOIN users u ON u.id = b.user_id " +
     "WHERE b.child_id = ? AND u.role = 'parent' ORDER BY b.id"
-  ).all(childId).map(function (row) {
+  ).all(childId);
+  return rows.map(function (row) {
     return (row.display_name || "家长") + (row.relation ? "（" + row.relation + "）" : "");
   });
 }
