@@ -174,7 +174,7 @@ async function getParentEngagement(userId, childId) {
   rows.forEach(function (row) {
     count[row.event_type] = (count[row.event_type] || 0) + 1;
     if (["task_detail_viewed", "timeline_viewed", "feedback_card_viewed",
-      "submission_drafted", "submission_submitted", "teacher_contact_started"].includes(row.event_type)) {
+      "submission_drafted", "submission_submitted", "teacher_contact_started", "parent_task_request_submitted"].includes(row.event_type)) {
       activeDays.add(String(row.created_at).slice(0, 10));
     }
   });
@@ -187,11 +187,13 @@ async function getParentEngagement(userId, childId) {
     (count.feedback_card_viewed || 0);
   const followThrough = (count.submission_drafted || 0) +
     (count.submission_submitted || 0) +
-    (count.teacher_contact_started || 0);
+    (count.teacher_contact_started || 0) +
+    (count.parent_task_request_submitted || 0);
   const strongSignals = (count.timeline_viewed || 0) +
     (count.submission_drafted || 0) +
     (count.submission_submitted || 0) +
-    (count.teacher_contact_started || 0);
+    (count.teacher_contact_started || 0) +
+    (count.parent_task_request_submitted || 0);
 
   let score = 0;
   score += Math.min(24, (count.task_detail_viewed || 0) * 8);
@@ -199,6 +201,7 @@ async function getParentEngagement(userId, childId) {
   score += Math.min(28, (count.submission_submitted || 0) * 14);
   score += Math.min(12, (count.submission_drafted || 0) * 6);
   score += Math.min(18, (count.teacher_contact_started || 0) * 18);
+  score += Math.min(18, (count.parent_task_request_submitted || 0) * 18);
   if (activeDays.size >= 2) score += 10;
   score = Math.min(100, score);
 
@@ -217,6 +220,7 @@ async function getParentEngagement(userId, childId) {
   if (count.timeline_viewed) evidence.push("回看成长档案 " + count.timeline_viewed + " 次");
   if (count.submission_submitted) evidence.push("完成提交 " + count.submission_submitted + " 次");
   if (count.teacher_contact_started) evidence.push("发起沟通 " + count.teacher_contact_started + " 次");
+  if (count.parent_task_request_submitted) evidence.push("提交自主定制任务 " + count.parent_task_request_submitted + " 次");
   if (!evidence.length && touchpoints) evidence.push("接触过 " + touchpoints + " 次家校信息");
 
   let recommendation = "继续提供简短、可直接行动的信息";
@@ -522,6 +526,88 @@ async function upsertTeacherSubmissionVector(submissionId) {
   }
 }
 
+function buildParentTaskRequestDocument(row) {
+  if (!row) return null;
+  const statusText = row.status === "approved" ? "已同意实施"
+    : row.status === "rejected" ? "已拒绝" : "待教师审核";
+  return {
+    docKey: "parent_task_request:" + row.id,
+    docType: "parent_task_request",
+    refId: String(row.id),
+    title: "家长自主定制任务：" + (row.child_name || "学生") + " · " + (row.title || "本周想做的事"),
+    content: [
+      "家长提交了本周自主定制任务提议。",
+      "学生：" + (row.child_name || "未填写") + "；年级：" + (row.grade || "未填写") + "；家长：" + (row.parent_name || "家长") + "。",
+      "提议标题：" + (row.title || "未填写") + "；预计时长：" + (row.duration || 20) + "分钟。",
+      "家长想和孩子一起做：" + String(row.description || "").slice(0, 3000),
+      "家长期待目标：" + (row.goal || "未填写") + "。",
+      "当前审核状态：" + statusText + "。",
+      row.teacher_comment ? "教师评价：" + row.teacher_comment : "教师评价：暂无。",
+      row.task_id ? "已生成正式个人任务，任务ID：" + row.task_id + "。" : "尚未生成正式任务。"
+    ].join("\n"),
+    metadata: {
+      requestId: row.id,
+      childId: row.child_id,
+      userId: row.user_id,
+      status: row.status,
+      taskId: row.task_id || null,
+      createdAt: row.created_at
+    }
+  };
+}
+
+async function getParentTaskRequestRow(requestId) {
+  return await db.prepare(
+    "SELECT r.*, c.name AS child_name, c.grade, u.display_name AS parent_name " +
+    "FROM parent_task_requests r JOIN children c ON c.id = r.child_id " +
+    "JOIN users u ON u.id = r.user_id " +
+    "WHERE r.id = ? AND " + realStudentWhere("c")
+  ).get(requestId, ...demoParams(2));
+}
+
+async function upsertParentTaskRequestVector(requestId) {
+  const row = await getParentTaskRequestRow(requestId);
+  const doc = buildParentTaskRequestDocument(row);
+  if (!doc) return { indexed: false, embedded: false };
+
+  const contentHash = crypto.createHash("sha256").update(doc.content).digest("hex");
+  const old = await db.prepare(
+    "SELECT embedding, embedding_model, embedding_provider, content_hash " +
+    "FROM ai_vector_documents WHERE namespace = 'teacher' AND doc_key = ?"
+  ).get(doc.docKey);
+  const unchanged = old && old.content_hash === contentHash;
+  const existingEmbedding = old && old.embedding ? old.embedding : "[]";
+  await db.prepare(
+    "INSERT INTO ai_vector_documents " +
+    "(namespace, doc_key, doc_type, ref_id, title, content, metadata, embedding, embedding_model, embedding_provider, content_hash, updated_at) " +
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime')) " +
+    "ON CONFLICT(doc_key) DO UPDATE SET doc_type=excluded.doc_type, ref_id=excluded.ref_id, title=excluded.title, " +
+    "content=excluded.content, metadata=excluded.metadata, embedding=excluded.embedding, embedding_model=excluded.embedding_model, " +
+    "embedding_provider=excluded.embedding_provider, content_hash=excluded.content_hash, updated_at=excluded.updated_at"
+  ).run(
+    "teacher", doc.docKey, doc.docType, doc.refId, doc.title, doc.content, JSON.stringify(doc.metadata),
+    unchanged ? existingEmbedding : "[]",
+    unchanged ? (old.embedding_model || "") : "",
+    unchanged ? (old.embedding_provider || "") : "",
+    contentHash
+  );
+
+  if (unchanged && existingEmbedding !== "[]") return { indexed: true, embedded: true };
+  if (!getZhipuApiKey()) return { indexed: true, embedded: false };
+  try {
+    const vector = (await requestZhipuEmbeddings([doc.content]))[0] || [];
+    if (!vector.length) return { indexed: true, embedded: false };
+    await db.prepare(
+      "UPDATE ai_vector_documents SET embedding=?, embedding_model=?, embedding_provider='zhipu', " +
+      "updated_at=datetime('now','localtime') WHERE namespace='teacher' AND doc_key=?"
+    ).run(JSON.stringify(vector), getZhipuEmbeddingModel(), doc.docKey);
+    return { indexed: true, embedded: true };
+  } catch (e) {
+    console.warn("家长定制任务向量化失败，将由下次索引重试：", e.message);
+    return { indexed: true, embedded: false, error: e.message };
+  }
+}
+
 const BEHAVIOR_TYPE_NAMES = {
   task_card_viewed: "查看任务卡片",
   task_detail_viewed: "查看任务详情",
@@ -529,6 +615,7 @@ const BEHAVIOR_TYPE_NAMES = {
   timeline_viewed: "回看成长档案",
   submission_drafted: "起草提交",
   submission_submitted: "完成提交",
+  parent_task_request_submitted: "提交自主定制任务",
   teacher_contact_started: "发起沟通",
   page_dwell: "页面停留",
   questionnaire_viewed: "查看问卷"
@@ -540,6 +627,12 @@ async function buildTeacherKnowledgeDocuments() {
   const tasks = await db.prepare(
     "SELECT t.*, c.name AS child_name FROM tasks t LEFT JOIN children c ON c.id = t.child_id ORDER BY t.id DESC"
   ).all();
+  const parentTaskRequests = await db.prepare(
+    "SELECT r.*, c.name AS child_name, c.grade, u.display_name AS parent_name " +
+    "FROM parent_task_requests r JOIN children c ON c.id = r.child_id " +
+    "JOIN users u ON u.id = r.user_id " +
+    "WHERE " + realStudentWhere("c") + " ORDER BY r.id DESC"
+  ).all(...demoParams(2));
   const submissions = await db.prepare(
     "SELECT s.*, c.name AS child_name, c.grade, c.caregiver, c.interests, " +
     "t.title AS task_title, t.task_type, t.week_start, t.child_id AS task_child_id, " +
@@ -572,6 +665,7 @@ async function buildTeacherKnowledgeDocuments() {
   const topWeekday = Object.entries(weekdayBuckets).sort(function (a, b) { return b[1] - a[1]; })[0];
   const customTaskCount = tasks.filter(function (task) { return task.child_id != null; }).length;
   const currentTaskCount = tasks.filter(function (task) { return task.week_start === weekStart; }).length;
+  const pendingParentTaskCount = parentTaskRequests.filter(function (row) { return row.status === "pending"; }).length;
 
   const docs = [{
     docKey: "summary:teacher",
@@ -581,6 +675,7 @@ async function buildTeacherKnowledgeDocuments() {
     content: [
       "班级总体情况。",
       "已发布任务总数：" + tasks.length + " 项，其中定制任务 " + customTaskCount + " 项。",
+      "家长自主定制任务提议总数：" + parentTaskRequests.length + " 条，其中待审核 " + pendingParentTaskCount + " 条。",
       "本周发布任务：" + currentTaskCount + " 项。",
       "本周已有 " + currentChildIds.size + " 位学生与家长完成任务，共提交 " + currentSubmissions.length + " 份。",
       "本周待点评提交 " + pendingFeedback + " 份。",
@@ -625,7 +720,8 @@ async function buildTeacherKnowledgeDocuments() {
     const b = behaviorByChild[id];
     const touch = (b.counts.task_card_viewed || 0) + (b.counts.feedback_card_viewed || 0) + (b.counts.task_detail_viewed || 0);
     const explore = (b.counts.task_detail_viewed || 0) + (b.counts.timeline_viewed || 0) + (b.counts.feedback_card_viewed || 0);
-    const follow = (b.counts.submission_drafted || 0) + (b.counts.submission_submitted || 0) + (b.counts.teacher_contact_started || 0);
+    const follow = (b.counts.submission_drafted || 0) + (b.counts.submission_submitted || 0) +
+      (b.counts.teacher_contact_started || 0) + (b.counts.parent_task_request_submitted || 0);
     behaviorTouchTotal += touch;
     behaviorExploreTotal += explore;
     behaviorFollowTotal += follow;
@@ -699,6 +795,11 @@ async function buildTeacherKnowledgeDocuments() {
       ].join("\n"),
       metadata: { taskId: task.id, childId: task.child_id || null, weekStart: task.week_start || "" }
     });
+  });
+
+  parentTaskRequests.forEach(function (row) {
+    const doc = buildParentTaskRequestDocument(row);
+    if (doc) docs.push(doc);
   });
 
   submissions.slice(0, 500).forEach(function (row) {
@@ -883,7 +984,7 @@ async function generateTeacherChatAnswer(question, history, docs) {
   return requestZhipuChat([
     {
       role: "system",
-      content: "你是家校共育系统的教师端 AI 助手。请只根据提供的班级资料回答，可以做明确标注为推测的合理推理。回答用中文，先给结论，再给依据和建议。不能把站内行为直接说成家长是否关心，也不要公开比较学生。若资料不足，直接说明证据不足并告诉老师还需要什么数据。涉及学生时可以使用资料中的学生姓名，但不要输出家长账号、密码或无关隐私。资料中会包含家长近30天站内行为埋点统计（查看、浏览、起草、提交、发起沟通等），可用于回答参与节奏、活跃情况和沟通时机类问题，但绝不能据此断言家长是否关心孩子。"
+      content: "你是家校共育系统的教师端 AI 助手。请只根据提供的班级资料回答，可以做明确标注为推测的合理推理。回答用中文，先给结论，再给依据和建议。不能把站内行为直接说成家长是否关心，也不要公开比较学生。若资料不足，直接说明证据不足并告诉老师还需要什么数据。涉及学生时可以使用资料中的学生姓名，但不要输出家长账号、密码或无关隐私。资料中会包含家长近30天站内行为埋点统计（查看、浏览、起草、提交、发起沟通、自主定制任务等），以及家长自主定制任务提议和教师审核结果；这些可用于回答参与节奏、任务意愿、任务设计和沟通时机类问题，但绝不能据此断言家长是否关心孩子。"
     },
     { role: "system", content: "检索到的班级资料：\n" + context },
     ...safeHistory,
@@ -1122,7 +1223,7 @@ async function handleApi(req, res, pathname, query) {
     if (query.get("childId") && !child) return sendJson(res, 403, { message: "无权访问该孩子信息" });
 
     const result = { children, child, task: null, taskStatus: "none", submission: null,
-                     feedback: null, unreadCount: 0, timeline: { taskCount: 0, workCount: 0 },
+                     feedback: null, unreadCount: 0, timeline: { taskCount: 0, workCount: 0 }, parentTaskRequest: null,
                      needQuestionnaire: false, engagement: null, engagementEnabled: true };
     if (!child) {
       // 首次登录的家长（无孩子且未填问卷）→ 前端跳转问卷页
@@ -1178,7 +1279,35 @@ async function handleApi(req, res, pathname, query) {
       "SELECT COUNT(*) AS n FROM submissions WHERE child_id = ? AND status = 'submitted'"
     ).get(child.id).n;
 
+    result.parentTaskRequest = await db.prepare(
+      "SELECT id, title, description, goal, duration, status, teacher_comment, task_id, created_at, reviewed_at " +
+      "FROM parent_task_requests WHERE user_id = ? AND child_id = ? ORDER BY id DESC LIMIT 1"
+    ).get(user.id, child.id) || null;
+
     return sendJson(res, 200, result);
+  }
+
+  if (req.method === "POST" && pathname === "/api/parent/task-requests") {
+    if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可提交自主任务" });
+    const body = await readBody(req);
+    const childId = Number(body.childId);
+    if (!childId || !(await canAccessChild(user, childId))) return sendJson(res, 403, { message: "无权访问该孩子信息" });
+    const description = String(body.description || "").trim();
+    const title = String(body.title || "").trim().slice(0, 60) || "这个星期，我想跟孩子一起做";
+    const goal = String(body.goal || "").trim().slice(0, 160);
+    const duration = Math.max(5, Math.min(90, Number(body.duration) || 20));
+    if (description.length < 4) return sendJson(res, 400, { message: "请至少写 4 个字说明想和孩子做什么" });
+    if (description.length > 1200) return sendJson(res, 400, { message: "内容过长，请控制在 1200 字以内" });
+    const id = await db.prepare(
+      "INSERT INTO parent_task_requests (user_id, child_id, title, description, goal, duration) VALUES (?,?,?,?,?,?)"
+    ).run(user.id, childId, title, description, goal, duration).lastInsertRowid;
+    await logEvent(user, "parent_task_request_submitted", childId, null, { requestId: id });
+    const vector = await upsertParentTaskRequestVector(id);
+    const request = await db.prepare(
+      "SELECT id, title, description, goal, duration, status, teacher_comment, task_id, created_at, reviewed_at " +
+      "FROM parent_task_requests WHERE id = ?"
+    ).get(id);
+    return sendJson(res, 200, { ok: true, request, vectorIndexed: !!(vector && vector.indexed) });
   }
 
   /* ---- 首次登录问卷（孩子信息 + 陪伴情况，用于个性化任务） ---- */
@@ -1436,6 +1565,61 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { task, weekStart, submissions });
   }
 
+  if (req.method === "GET" && pathname === "/api/teacher/parent-task-requests") {
+    const status = String(query.get("status") || "").trim();
+    let rows = await db.prepare(
+      "SELECT r.*, c.name AS child_name, c.grade, c.caregiver, c.interests, u.display_name AS parent_name, " +
+      "t.title AS task_title " +
+      "FROM parent_task_requests r JOIN children c ON c.id = r.child_id " +
+      "JOIN users u ON u.id = r.user_id " +
+      "LEFT JOIN tasks t ON t.id = r.task_id " +
+      "WHERE " + realStudentWhere("c") + " ORDER BY CASE r.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, r.id DESC"
+    ).all(...demoParams(2));
+    if (["pending", "approved", "rejected"].includes(status)) {
+      rows = rows.filter(function (row) { return row.status === status; });
+    }
+    return sendJson(res, 200, { requests: rows });
+  }
+
+  if (req.method === "POST" && pathname === "/api/teacher/parent-task-requests/review") {
+    const body = await readBody(req);
+    const requestId = Number(body.requestId);
+    const decision = String(body.status || body.decision || "").trim();
+    if (!requestId || !["approved", "rejected"].includes(decision)) {
+      return sendJson(res, 400, { message: "请选择同意实施或拒绝" });
+    }
+    const request = await getParentTaskRequestRow(requestId);
+    if (!request) return sendJson(res, 404, { message: "家长定制任务不存在" });
+
+    const comment = String(body.teacherComment || body.comment || "").trim().slice(0, 500);
+    if (decision === "rejected" && !comment) return sendJson(res, 400, { message: "拒绝时请填写评价或原因" });
+    let taskId = request.task_id || null;
+    if (decision === "approved") {
+      const title = String(body.title || request.title || "家长自主定制任务").trim().slice(0, 80);
+      const goal = String(body.goal || request.goal || "结合家庭意愿开展一次亲子共育活动").trim().slice(0, 180);
+      const steps = String(body.steps || request.description || "").trim().slice(0, 3000);
+      const dialogueTips = String(body.dialogueTips || "和孩子聊聊：这件事最有意思、最困难的地方分别是什么？").trim().slice(0, 200);
+      const submitHint = String(body.submitHint || "可提交照片、文字记录或一段亲子对话").trim().slice(0, 200);
+      const duration = Math.max(5, Math.min(90, Number(body.duration) || Number(request.duration) || 20));
+      const type = String(body.type || "家务实践").trim().slice(0, 40);
+      const difficulty = ["简单", "普通", "进阶"].includes(body.difficulty) ? body.difficulty : "普通";
+      const materials = String(body.materials || "按家庭实际准备").trim().slice(0, 160);
+      const fallbackPlan = String(body.fallbackPlan || "时间有限时可缩短步骤，只保留一次共同完成和一次交流").trim().slice(0, 240);
+      taskId = await db.prepare(
+        "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by, child_id, difficulty, materials, fallback_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).run(
+        title, goal, steps, dialogueTips, submitHint, duration, type, mondayOf(new Date()), user.id,
+        request.child_id, difficulty, materials, fallbackPlan
+      ).lastInsertRowid;
+    }
+
+    await db.prepare(
+      "UPDATE parent_task_requests SET status=?, teacher_id=?, teacher_comment=?, task_id=?, reviewed_at=datetime('now','localtime') WHERE id=?"
+    ).run(decision, user.id, comment, taskId, requestId);
+    const vector = await upsertParentTaskRequestVector(requestId);
+    return sendJson(res, 200, { ok: true, taskId: taskId || null, vectorIndexed: !!(vector && vector.indexed) });
+  }
+
   if (req.method === "GET" && pathname === "/api/teacher/students") {
     // 学生档案（含问卷信息），同步给教师端做任务定制参考
     const students = (await getTeacherVisibleChildren()).map(function (row) {
@@ -1654,7 +1838,8 @@ async function handleApi(req, res, pathname, query) {
       if (kind === "exploration") {
         return (c.task_detail_viewed || 0) + (c.timeline_viewed || 0) + (c.feedback_card_viewed || 0);
       }
-      return (c.submission_drafted || 0) + (c.submission_submitted || 0) + (c.teacher_contact_started || 0);
+        return (c.submission_drafted || 0) + (c.submission_submitted || 0) +
+          (c.teacher_contact_started || 0) + (c.parent_task_request_submitted || 0);
     }
     const behaviorChildRows = Object.keys(behaviorByChild).map(function (id) {
       const child = behaviorByChild[id];

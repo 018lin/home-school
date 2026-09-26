@@ -1408,9 +1408,120 @@ body:has(#childSwitcher) .contact-action:hover {
   background: #edf5ff !important;
 }
 
+body:has(#childSwitcher) .custom-task-mark {
+  background: #5e6ad2 !important;
+}
+
+body:has(#childSwitcher) .task-request-modal textarea {
+  width: 100% !important;
+  min-height: 118px !important;
+  resize: vertical !important;
+}
+
 body:has(#childSwitcher) #engagementCard .card-body,
 body:has(#childSwitcher) #timelineCard .card-body {
   color: #65717d !important;
+}
+
+body:has(#publishBtn) .request-panel {
+  grid-column: 2 !important;
+  grid-row: 1 / span 3 !important;
+  margin: 0 !important;
+  padding: 24px !important;
+  align-self: start !important;
+}
+
+body:has(#publishBtn) .request-panel-head {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  margin-bottom: 16px !important;
+}
+
+body:has(#publishBtn) .request-count,
+body:has(#publishBtn) .request-status {
+  flex: 0 0 auto !important;
+  padding: 4px 9px !important;
+  border-radius: 999px !important;
+  background: #edf5ff !important;
+  color: #0057b8 !important;
+  font-size: 12px !important;
+  font-style: normal !important;
+  font-weight: 650 !important;
+}
+
+body:has(#publishBtn) .request-status.approved {
+  background: #e9f8f0 !important;
+  color: #157a45 !important;
+}
+
+body:has(#publishBtn) .request-status.rejected {
+  background: #fff1f0 !important;
+  color: #b42318 !important;
+}
+
+body:has(#publishBtn) .parent-request-item {
+  padding: 16px !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+}
+
+body:has(#publishBtn) .parent-request-item + .parent-request-item {
+  margin-top: 14px !important;
+}
+
+body:has(#publishBtn) .parent-request-top {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+body:has(#publishBtn) .parent-request-top strong {
+  display: block !important;
+  color: var(--ink) !important;
+  font-size: 15px !important;
+}
+
+body:has(#publishBtn) .parent-request-top span {
+  display: block !important;
+  margin-top: 2px !important;
+  color: var(--muted) !important;
+  font-size: 12px !important;
+}
+
+body:has(#publishBtn) .parent-request-original {
+  margin-top: 12px !important;
+  padding: 12px !important;
+  border: 1px solid #e7edf5 !important;
+  border-radius: 10px !important;
+  background: #f8fbff !important;
+}
+
+body:has(#publishBtn) .parent-request-original b {
+  color: var(--ink) !important;
+  font-size: 12px !important;
+}
+
+body:has(#publishBtn) .parent-request-original p {
+  margin-top: 5px !important;
+  color: #536174 !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+  white-space: pre-line !important;
+}
+
+body:has(#publishBtn) .request-actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+  margin-top: 14px !important;
+}
+
+body:has(#publishBtn) .request-actions button {
+  width: 100% !important;
 }
 
 @media (max-width: 900px) {
@@ -1477,5 +1588,9 @@ body:has(#childSwitcher) #timelineCard .card-body {
 
   body:has(#childSwitcher) .contact-action {
     padding-inline: 11px !important;
+  }
+
+  body:has(#publishBtn) .request-actions {
+    grid-template-columns: 1fr !important;
   }
 }

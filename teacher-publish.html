@@ -56,7 +56,7 @@
  }
  @media (max-width: 520px) { .row2 { grid-template-columns: 1fr; } }
  </style><link rel="stylesheet" href="css/refined-ui.css">
-</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link active" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><section class="publish-panel"><p class="panel-title">发布本周亲子任务</p><p class="panel-sub">从模板带出任务卡，老师可微调后发布给全班。</p><div class="field"><label>任务模板</label><select id="templateSelect"></select></div><div class="field"><label>任务标题</label><input id="pubTitle" maxlength="50"></div><div class="row2"><div class="field"><label>任务类型</label><select id="pubType"><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option>家务实践</option><option>运动健身</option><option>观察探究</option></select></div><div class="field"><label>预计时长</label><input id="pubDuration" type="number" min="5" max="60"></div></div><div class="row2"><div class="field"><label>难度</label><select id="pubDifficulty"><option>简单</option><option selected>普通</option><option>进阶</option></select></div><div class="field"><label>所需材料</label><input id="pubMaterials" maxlength="80"></div></div><div class="field"><label>目标</label><input id="pubGoal" maxlength="100"></div><div class="field"><label>亲子步骤</label><textarea id="pubSteps"></textarea></div><div class="field"><label>对话提示</label><input id="pubTips" maxlength="100"></div><div class="field"><label>提交要求</label><input id="pubSubmit" maxlength="100"></div><div class="field"><label>替代方案</label><input id="pubFallback" maxlength="120"></div><button class="btn-primary" id="publishBtn">发布给全班</button><p class="form-msg" id="publishMsg"></p></section></main><script src="js/api.js"></script><script>
+</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link active" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><section class="publish-panel"><p class="panel-title">发布本周亲子任务</p><p class="panel-sub">从模板带出任务卡，老师可微调后发布给全班。</p><div class="field"><label>任务模板</label><select id="templateSelect"></select></div><div class="field"><label>任务标题</label><input id="pubTitle" maxlength="50"></div><div class="row2"><div class="field"><label>任务类型</label><select id="pubType"><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option>家务实践</option><option>运动健身</option><option>观察探究</option></select></div><div class="field"><label>预计时长</label><input id="pubDuration" type="number" min="5" max="60"></div></div><div class="row2"><div class="field"><label>难度</label><select id="pubDifficulty"><option>简单</option><option selected>普通</option><option>进阶</option></select></div><div class="field"><label>所需材料</label><input id="pubMaterials" maxlength="80"></div></div><div class="field"><label>目标</label><input id="pubGoal" maxlength="100"></div><div class="field"><label>亲子步骤</label><textarea id="pubSteps"></textarea></div><div class="field"><label>对话提示</label><input id="pubTips" maxlength="100"></div><div class="field"><label>提交要求</label><input id="pubSubmit" maxlength="100"></div><div class="field"><label>替代方案</label><input id="pubFallback" maxlength="120"></div><button class="btn-primary" id="publishBtn">发布给全班</button><p class="form-msg" id="publishMsg"></p></section><section class="card request-panel"><div class="request-panel-head"><div><p class="panel-title">家长自主定制任务</p><p class="panel-sub">查看家长本周想和孩子一起做的任务，可修改后同意实施或拒绝并评价。</p></div><span class="request-count" id="requestCount"></span></div><div id="parentRequestList"><p class="empty-text">正在加载家长提议…</p></div></section></main><script src="js/api.js"></script><script>
  (function () {
  "use strict";
  requireAuth();
@@ -145,5 +145,110 @@
  msg.textContent = "网络异常，请稍后再试";
  });
  });
+
+ function requestStatusText(status) {
+ return status === "approved" ? "已同意" : status === "rejected" ? "已拒绝" : "待审核";
+ }
+
+ function defaultTaskFromRequest(req) {
+ return {
+ title: req.title || "家长自主定制任务",
+ type: "家务实践",
+ duration: Number(req.duration) || 20,
+ difficulty: "普通",
+ materials: "按家庭实际准备",
+ goal: req.goal || "结合家庭意愿开展一次亲子活动",
+ steps: req.description || "",
+ tips: "和孩子聊聊：这件事最有意思、最困难的地方分别是什么？",
+ submit: "可提交照片、文字记录或一段亲子对话",
+ fallback: "时间有限时可缩短步骤，只保留一次共同完成和一次交流"
+ };
+ }
+
+ function renderParentRequests(requests) {
+ var list = document.getElementById("parentRequestList");
+ var count = document.getElementById("requestCount");
+ var pending = requests.filter(function (r) { return r.status === "pending"; }).length;
+ count.textContent = requests.length ? (pending ? pending + " 待处理" : "已处理") : "";
+ if (!requests.length) {
+ list.innerHTML = '<p class="empty-text">暂无家长自主定制任务提议</p>';
+ return;
+ }
+ list.innerHTML = requests.map(function (req) {
+ var task = defaultTaskFromRequest(req);
+ var disabled = req.status === "pending" ? "" : " disabled";
+ var h = '<article class="parent-request-item" data-id="' + req.id + '">';
+ h += '<div class="parent-request-top"><div><strong>' + esc(req.child_name || "学生") + '</strong><span>' + esc((req.grade || "") + " · " + (req.parent_name || "家长")) + '</span></div><em class="request-status ' + esc(req.status) + '">' + requestStatusText(req.status) + '</em></div>';
+ h += '<div class="parent-request-original"><b>家长想法</b><p>' + esc(req.description || "") + '</p>' + (req.goal ? '<p>期待：' + esc(req.goal) + '</p>' : '') + '</div>';
+ if (req.status === "pending") {
+ h += '<div class="field"><label>任务标题</label><input class="pr-title" maxlength="80" value="' + esc(task.title) + '"' + disabled + '></div>';
+ h += '<div class="row2"><div class="field"><label>任务类型</label><select class="pr-type"' + disabled + '><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option selected>家务实践</option><option>运动健身</option><option>观察探究</option></select></div><div class="field"><label>预计时长</label><input class="pr-duration" type="number" min="5" max="90" value="' + task.duration + '"' + disabled + '></div></div>';
+ h += '<div class="field"><label>目标</label><input class="pr-goal" maxlength="180" value="' + esc(task.goal) + '"' + disabled + '></div>';
+ h += '<div class="field"><label>实施步骤</label><textarea class="pr-steps"' + disabled + '>' + esc(task.steps) + '</textarea></div>';
+ h += '<div class="field"><label>对话提示</label><input class="pr-tips" maxlength="200" value="' + esc(task.tips) + '"' + disabled + '></div>';
+ h += '<div class="field"><label>提交要求</label><input class="pr-submit" maxlength="200" value="' + esc(task.submit) + '"' + disabled + '></div>';
+ h += '<div class="field"><label>教师评价</label><textarea class="pr-comment" placeholder="同意时可写鼓励，拒绝时需说明原因或替代建议"></textarea></div>';
+ h += '<div class="request-actions"><button class="btn-confirm pr-approve" type="button">同意实施</button><button class="btn-cancel pr-reject" type="button">拒绝并评价</button></div><p class="form-msg pr-msg"></p>';
+ } else {
+ h += '<div class="parent-request-original"><b>教师评价</b><p>' + esc(req.teacher_comment || "暂无") + '</p>' + (req.task_title ? '<p>已生成任务：' + esc(req.task_title) + '</p>' : '') + '</div>';
+ }
+ h += '</article>';
+ return h;
+ }).join("");
+ }
+
+ function loadParentRequests() {
+ api("/api/teacher/parent-task-requests").then(function (data) {
+ renderParentRequests(data.requests || []);
+ }).catch(function () {
+ document.getElementById("parentRequestList").innerHTML = '<p class="empty-text">加载失败，请刷新重试</p>';
+ });
+ }
+
+ function reviewParentRequest(item, status) {
+ var msg = item.querySelector(".pr-msg");
+ var comment = item.querySelector(".pr-comment").value.trim();
+ msg.style.color = "";
+ msg.textContent = "";
+ if (status === "rejected" && !comment) { msg.style.color = "#dc2626"; msg.textContent = "拒绝时请填写评价或原因"; return; }
+ var buttons = item.querySelectorAll("button");
+ buttons.forEach(function (btn) { btn.disabled = true; });
+ api("/api/teacher/parent-task-requests/review", {
+ method: "POST",
+ body: {
+ requestId: Number(item.getAttribute("data-id")),
+ status: status,
+ teacherComment: comment,
+ title: item.querySelector(".pr-title").value.trim(),
+ type: item.querySelector(".pr-type").value,
+ duration: Number(item.querySelector(".pr-duration").value) || 20,
+ goal: item.querySelector(".pr-goal").value.trim(),
+ steps: item.querySelector(".pr-steps").value.trim(),
+ dialogueTips: item.querySelector(".pr-tips").value.trim(),
+ submitHint: item.querySelector(".pr-submit").value.trim()
+ }
+ }).then(function (res) {
+ if (res.ok) loadParentRequests();
+ else {
+ buttons.forEach(function (btn) { btn.disabled = false; });
+ msg.style.color = "#dc2626";
+ msg.textContent = res.message || "处理失败";
+ }
+ }).catch(function () {
+ buttons.forEach(function (btn) { btn.disabled = false; });
+ msg.style.color = "#dc2626";
+ msg.textContent = "网络异常，请稍后重试";
+ });
+ }
+
+ document.getElementById("parentRequestList").addEventListener("click", function (e) {
+ var approve = e.target.closest(".pr-approve");
+ var reject = e.target.closest(".pr-reject");
+ if (!approve && !reject) return;
+ var item = e.target.closest(".parent-request-item");
+ reviewParentRequest(item, approve ? "approved" : "rejected");
+ });
+
+ loadParentRequests();
  })();
  </script></body></html>

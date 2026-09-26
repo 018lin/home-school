@@ -137,15 +137,33 @@
  var contactCard = document.getElementById("contactCard");
  if (contactCard && !contactCard.dataset.enhanced) {
  contactCard.dataset.enhanced = "true";
- contactCard.innerHTML = '<div class="contact-profile"><span class="contact-avatar" id="contactAvatar">王</span><div class="contact-copy"><div class="contact-name-row"><strong id="contactTeacherName">王老师</strong><span class="contact-status">工作时间可联系</span></div><p>如有疑问可发起沟通，老师将在工作时间内回复。</p></div></div><button type="button" class="contact-action" id="contactAction">发起沟通</button>';
+ contactCard.innerHTML = '<div class="contact-profile"><span class="contact-avatar custom-task-mark" id="customTaskMark">想</span><div class="contact-copy"><div class="contact-name-row"><strong>这个星期，我想跟孩子一起做……</strong><span class="contact-status" id="customTaskStatus">待填写</span></div><p id="customTaskSummary">把你的任务想法发给老师，老师可调整后同意实施或给出建议。</p></div></div><button type="button" class="contact-action" id="contactAction">填写想法</button>';
+ }
+ var modal = document.getElementById("contactModal");
+ if (modal && !modal.dataset.enhanced) {
+ modal.dataset.enhanced = "true";
+ modal.innerHTML = '<div class="modal task-request-modal"><h3>这个星期，我想跟孩子一起做……</h3><p class="modal-desc">写下你想和孩子一起完成的活动，老师会在教师端查看，可直接同意实施、适当修改，或给出评价。</p><div class="field"><label for="requestTitle">想法标题</label><input type="text" id="requestTitle" placeholder="如：一起做一道晚餐" maxlength="60"></div><div class="field"><label for="requestDescription">我想做的任务</label><textarea id="requestDescription" placeholder="写清楚想和孩子做什么、怎么做、需要老师注意什么" maxlength="1200"></textarea></div><div class="field"><label for="requestGoal">希望孩子收获</label><input type="text" id="requestGoal" placeholder="如：练习分工合作，体验家务责任" maxlength="160"></div><div class="field"><label for="requestDuration">预计时长（分钟）</label><input type="number" id="requestDuration" min="5" max="90" value="20"></div><p class="error-msg" id="requestError" style="color:#dc2626;font-size:12px;min-height:16px"></p><div class="modal-actions"><button class="btn-cancel" id="contactCancel" type="button">取消</button><button class="btn-confirm" id="contactOk" type="button">发送给老师</button></div></div>';
  }
  }
- function updateParentContactTeacher(name) {
- var teacher = String(name || "王老师").trim() || "王老师";
- var nameEl = document.getElementById("contactTeacherName");
- var avatarEl = document.getElementById("contactAvatar");
- if (nameEl) nameEl.textContent = teacher;
- if (avatarEl) avatarEl.textContent = teacher.slice(0, 1);
+ function renderParentTaskRequest(request) {
+ var statusEl = document.getElementById("customTaskStatus");
+ var summaryEl = document.getElementById("customTaskSummary");
+ var actionEl = document.getElementById("contactAction");
+ if (!statusEl || !summaryEl || !actionEl) return;
+ if (!request) {
+ statusEl.textContent = "待填写";
+ summaryEl.textContent = "把你的任务想法发给老师，老师可调整后同意实施或给出建议。";
+ actionEl.textContent = "填写想法";
+ return;
+ }
+ var statusText = { pending: "待老师审核", approved: "已同意实施", rejected: "老师已评价" }[request.status] || "已发送";
+ statusEl.textContent = statusText;
+ var title = request.title || "已提交任务想法";
+ var note = request.status === "approved" ? "老师已同意，本周任务将以老师确认后的版本实施。"
+ : request.status === "rejected" ? (request.teacher_comment || "老师暂未采纳这条想法，可查看评价后再调整。")
+ : "已发送给老师，等待老师确认是否实施。";
+ summaryEl.textContent = title + " · " + note;
+ actionEl.textContent = request.status === "pending" ? "查看想法" : "再提一个";
  }
  enhanceParentHome();
  var auth = getAuth();
@@ -227,11 +245,10 @@
  fbBody.innerHTML =
  "<p>“" + esc(short) + "”</p><p style='font-size:12px;color:#9ca3af;margin-top:4px'>— " +
  esc(fb.teacher_name || "老师") + " · " + esc(fb.task_title || "") + "</p>";
- updateParentContactTeacher(fb.teacher_name || "王老师");
  } else {
  fbBody.innerHTML = '<p class="empty-text">还没有收到老师的反馈</p>';
- updateParentContactTeacher("王老师");
  }
+ renderParentTaskRequest(data.parentTaskRequest);
 
  // 我的关注记录卡
  var engagementTag = document.getElementById("engagementTag");
@@ -291,17 +308,54 @@
  window.location.href = "index.html";
  });
 
- /* ---- 联系老师（teacher_contact_started 埋点） ---- */
+ /* ---- 家长自主定制任务 ---- */
  var contactModal = document.getElementById("contactModal");
  function openContact() {
- trackEvent("teacher_contact_started", { childId: currentChildId });
+ if (!currentChildId) return;
+ document.getElementById("requestTitle").value = "";
+ document.getElementById("requestDescription").value = "";
+ document.getElementById("requestGoal").value = "";
+ document.getElementById("requestDuration").value = "20";
+ document.getElementById("requestError").textContent = "";
  contactModal.classList.add("show");
  }
  document.getElementById("contactCard").addEventListener("click", openContact);
  document.getElementById("contactCard").addEventListener("keydown", function (e) {
  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openContact(); }
  });
- document.getElementById("contactOk").addEventListener("click", function () { contactModal.classList.remove("show"); });
+ document.getElementById("contactCancel").addEventListener("click", function () { contactModal.classList.remove("show"); });
+ document.getElementById("contactOk").addEventListener("click", function () {
+ var err = document.getElementById("requestError");
+ var btn = document.getElementById("contactOk");
+ var description = document.getElementById("requestDescription").value.trim();
+ err.textContent = "";
+ if (!description || description.length < 4) { err.textContent = "请写下想和孩子一起做什么"; return; }
+ btn.disabled = true;
+ btn.textContent = "发送中…";
+ api("/api/parent/task-requests", {
+ method: "POST",
+ body: {
+ childId: currentChildId,
+ title: document.getElementById("requestTitle").value.trim(),
+ description: description,
+ goal: document.getElementById("requestGoal").value.trim(),
+ duration: Number(document.getElementById("requestDuration").value) || 20
+ }
+ }).then(function (res) {
+ btn.disabled = false;
+ btn.textContent = "发送给老师";
+ if (res.ok) {
+ contactModal.classList.remove("show");
+ loadHome(currentChildId);
+ } else {
+ err.textContent = res.message || "发送失败";
+ }
+ }).catch(function () {
+ btn.disabled = false;
+ btn.textContent = "发送给老师";
+ err.textContent = "网络异常，请稍后再试";
+ });
+ });
  contactModal.addEventListener("click", function (e) { if (e.target === contactModal) contactModal.classList.remove("show"); });
 
  /* ---- 绑定弹窗 ---- */
