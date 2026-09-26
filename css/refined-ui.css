@@ -1104,7 +1104,7 @@ body:has(#publishBtn) .stat-row {
   gap: 10px !important;
 }
 
-body:has(#publishBtn) .stat-mini {
+  body:has(#publishBtn) .stat-mini {
   min-width: 0 !important;
   padding: 13px 8px 12px !important;
   background: #f8fbff !important;
@@ -1181,7 +1181,301 @@ body:has(#publishBtn) .footer-note {
     gap: 7px !important;
   }
 
-  body:has(#publishBtn) .stat-mini {
+body:has(#publishBtn) .stat-mini {
     padding-inline: 4px !important;
+  }
+}
+
+/* Parent home dashboard: final override after shared workspace styles. */
+body:has(#childSwitcher) .main {
+  width: min(1200px, calc(100% - 48px)) !important;
+  max-width: 1200px !important;
+  padding: 34px 0 72px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr) !important;
+  grid-template-areas:
+    "eyebrow eyebrow"
+    "bind bind"
+    "task feedback"
+    "timeline contact"
+    "timeline engagement"
+    "footer footer" !important;
+  grid-auto-rows: minmax(0, auto) !important;
+  align-items: stretch !important;
+  gap: 18px 20px !important;
+}
+
+body:has(#childSwitcher) .main::before {
+  grid-area: eyebrow !important;
+  margin-bottom: 0 !important;
+}
+
+body:has(#childSwitcher) .bind-bar {
+  grid-area: bind !important;
+  margin: 0 !important;
+}
+
+body:has(#childSwitcher) #taskCard {
+  grid-area: task !important;
+  min-height: 258px !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  padding: 28px 30px !important;
+  border-color: #c8e3f4 !important;
+  background: linear-gradient(135deg, #f3f9ff 0%, #eefbf8 100%) !important;
+  box-shadow: 0 18px 42px rgba(35, 116, 158, 0.1) !important;
+}
+
+body:has(#childSwitcher) #feedbackCard {
+  grid-area: feedback !important;
+  height: 100% !important;
+  background: #fff !important;
+}
+
+body:has(#childSwitcher) #timelineCard {
+  grid-area: timeline !important;
+  height: 100% !important;
+  min-height: 220px !important;
+}
+
+body:has(#childSwitcher) #contactCard {
+  grid-area: contact !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+}
+
+body:has(#childSwitcher) #engagementCard {
+  grid-area: engagement !important;
+  height: 100% !important;
+  min-width: 0 !important;
+}
+
+body:has(#childSwitcher) .main > .footer-note {
+  grid-area: footer !important;
+  margin: 4px 0 0 !important;
+}
+
+body:has(#childSwitcher) .main > .card {
+  margin-top: 0 !important;
+}
+
+body:has(#childSwitcher) #taskCard .card-head {
+  align-items: center !important;
+}
+
+body:has(#childSwitcher) #taskCard .card-icon {
+  background: rgba(255, 255, 255, 0.72) !important;
+  border-color: rgba(119, 180, 212, 0.3) !important;
+}
+
+body:has(#childSwitcher) #taskCard .card-icon::before {
+  background: #0d7490 !important;
+}
+
+body:has(#childSwitcher) #taskCard .card-body {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  gap: 6px 24px !important;
+  margin-top: 28px !important;
+}
+
+body:has(#childSwitcher) #taskCard .card-body > .task-title-text {
+  grid-column: 1 / -1 !important;
+  margin-bottom: 0 !important;
+  color: #123047 !important;
+  font-size: 19px !important;
+  line-height: 1.45 !important;
+}
+
+body:has(#childSwitcher) #taskCard .card-body > p:not(.task-title-text) {
+  grid-column: 1 !important;
+  margin: 0 !important;
+  color: #557184 !important;
+}
+
+body:has(#childSwitcher) #taskCard .card-body > .btn-submit {
+  grid-column: 2 !important;
+  grid-row: 2 / span 2 !important;
+  align-self: end !important;
+  margin: 0 !important;
+  min-width: 150px !important;
+  padding-inline: 20px !important;
+  text-align: center !important;
+  box-shadow: 0 8px 18px rgba(0, 102, 204, 0.18) !important;
+}
+
+body:has(#childSwitcher) #feedbackCard .card-body {
+  display: flex !important;
+  min-height: 92px !important;
+  padding: 16px 18px !important;
+  align-items: center !important;
+  background: #f8fafc !important;
+  border: 1px solid #edf0f4 !important;
+  border-radius: 12px !important;
+}
+
+body:has(#childSwitcher) #feedbackCard .card-body p:first-child {
+  color: #273544 !important;
+  font-size: 15px !important;
+  line-height: 1.75 !important;
+}
+
+body:has(#childSwitcher) #feedbackCard .card-body p:last-child {
+  margin-top: 8px !important;
+  color: #87919d !important;
+}
+
+body:has(#childSwitcher) .contact-profile {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+body:has(#childSwitcher) .contact-avatar {
+  width: 46px !important;
+  height: 46px !important;
+  flex: 0 0 46px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  color: #fff !important;
+  background: #0f766e !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+body:has(#childSwitcher) .contact-copy {
+  min-width: 0 !important;
+}
+
+body:has(#childSwitcher) .contact-name-row {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+body:has(#childSwitcher) .contact-name-row strong {
+  color: var(--ink) !important;
+  font-size: 16px !important;
+  font-weight: 650 !important;
+}
+
+body:has(#childSwitcher) .contact-status {
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+  color: #157a45 !important;
+  background: #e9f8f0 !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+}
+
+body:has(#childSwitcher) .contact-copy p {
+  margin-top: 5px !important;
+  color: var(--text-sub) !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+body:has(#childSwitcher) .contact-action {
+  flex: 0 0 auto !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border: 1px solid #cbd9e6 !important;
+  border-radius: 8px !important;
+  color: #0057b8 !important;
+  background: #f5f9ff !important;
+  font: inherit !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  cursor: pointer !important;
+}
+
+body:has(#childSwitcher) .contact-action:hover {
+  border-color: #8eb6dd !important;
+  background: #edf5ff !important;
+}
+
+body:has(#childSwitcher) #engagementCard .card-body,
+body:has(#childSwitcher) #timelineCard .card-body {
+  color: #65717d !important;
+}
+
+@media (max-width: 900px) {
+  body:has(#childSwitcher) .main {
+    width: min(100% - 40px, 720px) !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "eyebrow"
+      "bind"
+      "task"
+      "feedback"
+      "contact"
+      "engagement"
+      "timeline"
+      "footer" !important;
+    gap: 16px !important;
+    padding-top: 28px !important;
+  }
+
+  body:has(#childSwitcher) #taskCard,
+  body:has(#childSwitcher) #feedbackCard,
+  body:has(#childSwitcher) #contactCard,
+  body:has(#childSwitcher) #engagementCard,
+  body:has(#childSwitcher) #timelineCard {
+    min-height: auto !important;
+  }
+
+  body:has(#childSwitcher) #taskCard .card-body {
+    margin-top: 24px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  body:has(#childSwitcher) .main {
+    width: min(100% - 28px, 560px) !important;
+    padding-top: 22px !important;
+  }
+
+  body:has(#childSwitcher) #taskCard,
+  body:has(#childSwitcher) #feedbackCard,
+  body:has(#childSwitcher) #contactCard,
+  body:has(#childSwitcher) #engagementCard,
+  body:has(#childSwitcher) #timelineCard {
+    padding: 18px !important;
+    border-radius: 12px !important;
+  }
+
+  body:has(#childSwitcher) #taskCard .card-body {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  body:has(#childSwitcher) #taskCard .card-body > .btn-submit {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+  }
+
+  body:has(#childSwitcher) #contactCard {
+    align-items: flex-start !important;
+  }
+
+  body:has(#childSwitcher) .contact-action {
+    padding-inline: 11px !important;
   }
 }
