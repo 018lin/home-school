@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>孩子成长时间线 · 家校共育</title>
+  <title>教师的反馈 · 家校共育</title>
   <link rel="stylesheet" href="css/refined-ui.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
       --primary: #0066cc;
-      --primary-dark: #0057b8;
       --accent: #0f766e;
       --ink: #1d1d1f;
       --text-sub: #6e737d;
@@ -34,32 +33,28 @@
     .child-switcher { max-width: 190px; padding: 0 10px; }
     .btn-logout { padding: 0 14px; }
     .user-name { color: var(--text-sub); font-size: 13px; white-space: nowrap; }
-    .main { width: min(860px, calc(100% - 48px)); max-width: 860px; margin: 0 auto; padding: 34px 0 72px; }
-    .page-title { margin-bottom: 24px; }
+    .main { width: min(900px, calc(100% - 48px)); max-width: 900px; margin: 0 auto; padding: 34px 0 72px; }
+    .page-title { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; }
     .page-title h1 { font-size: 28px; line-height: 1.18; font-weight: 680; }
     .page-title p { margin-top: 8px; color: var(--text-sub); font-size: 14px; }
-    .empty { min-height: 320px; display: grid; place-items: center; text-align: center; color: var(--text-sub); background: var(--surface); border: 1px solid var(--line-soft); border-radius: 18px; box-shadow: 0 12px 40px rgba(29,29,31,0.06); padding: 24px; }
+    .feedback-count { color: var(--text-sub); font-size: 13px; white-space: nowrap; }
+    .feedback-list { display: grid; gap: 16px; }
+    .feedback-card, .empty { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 18px; box-shadow: 0 12px 40px rgba(29,29,31,0.06); padding: 24px; }
+    .feedback-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+    .feedback-title { font-size: 17px; font-weight: 650; line-height: 1.4; }
+    .feedback-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
+    .teacher-badge { flex: 0 0 auto; min-height: 28px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 999px; background: #e9f8f0; color: var(--accent); font-size: 12px; font-weight: 650; }
+    .comment { margin-top: 16px; padding: 16px; border: 1px solid #f2d7ad; border-radius: 12px; background: #fff8ed; color: var(--ink); font-size: 15px; line-height: 1.75; white-space: pre-line; }
+    .work-snapshot { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface-soft); }
+    .work-snapshot .label { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .work-snapshot p:last-child { margin-top: 6px; color: var(--text-sub); font-size: 13px; line-height: 1.65; white-space: pre-line; }
+    .tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag { padding: 2px 10px; border: 1px solid var(--line-soft); border-radius: 999px; background: #fff; color: var(--text-sub); font-size: 12px; }
+    .empty { min-height: 320px; display: grid; place-items: center; text-align: center; color: var(--text-sub); }
     .empty h2 { color: var(--ink); font-size: 20px; }
     .empty p { margin-top: 8px; font-size: 14px; line-height: 1.7; }
-    .timeline { position: relative; padding-left: 26px; }
-    .timeline::before { content: ""; position: absolute; left: 7px; top: 8px; bottom: 8px; width: 2px; background: var(--line); }
-    .item { position: relative; margin-bottom: 20px; }
-    .item::before { content: ""; position: absolute; left: -25px; top: 22px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 3px solid var(--primary); box-shadow: 0 0 0 5px var(--canvas); }
-    .item.has-feedback::before { border-color: var(--accent); }
-    .card { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 18px; box-shadow: 0 12px 40px rgba(29,29,31,0.06); padding: 22px; }
-    .item-title { font-size: 17px; font-weight: 650; }
-    .item-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
-    .item-content { margin-top: 14px; color: var(--text-sub); font-size: 14px; line-height: 1.75; white-space: pre-line; }
-    .attachment-preview { margin-top: 10px; display: grid; gap: 8px; }
-    .attachment-preview img, .attachment-preview video, .attachment-preview audio { max-width: 100%; border-radius: 10px; }
-    .attachment-file { font-size: 13px; color: var(--text-sub); border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 10px; background: #fff; }
-    .feedback-box { margin-top: 14px; background: #fff8ed; border: 1px solid #f2d7ad; border-radius: 12px; padding: 14px 16px; }
-    .feedback-box .label { color: var(--ink); font-size: 12px; font-weight: 650; }
-    .feedback-box .content { margin-top: 6px; font-size: 13px; line-height: 1.7; color: var(--text-sub); }
-    .tags { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
-    .tag { font-size: 12px; background: #fff; border: 1px solid var(--line-soft); color: var(--text-sub); padding: 2px 10px; border-radius: 999px; }
     @media (max-width: 900px) { .topbar { align-items: flex-start; flex-wrap: wrap; padding: 12px 18px; gap: 10px; } .parent-nav { order: 3; width: 100%; } .user-area { margin-left: auto; } .main { width: min(100% - 40px, 760px); padding-top: 28px; } }
-    @media (max-width: 640px) { .main { width: min(100% - 28px, 560px); padding-top: 22px; } .page-title h1 { font-size: 24px; } .card { padding: 18px; border-radius: 12px; } .user-name { display: none; } .child-switcher { max-width: 150px; } }
+    @media (max-width: 640px) { .main { width: min(100% - 28px, 560px); padding-top: 22px; } .page-title, .feedback-head { display: block; } .page-title h1 { font-size: 24px; } .feedback-card, .empty { padding: 18px; border-radius: 12px; } .teacher-badge { margin-top: 12px; } .user-name { display: none; } .child-switcher { max-width: 150px; } }
   </style>
 </head>
 <body>
@@ -67,8 +62,8 @@
     <div class="brand"><span class="logo"></span>家校共育</div>
     <nav class="parent-nav" aria-label="家长端导航">
       <a class="nav-link" href="home.html">本周任务</a>
-      <a class="nav-link active" href="timeline.html">孩子成长时间线</a>
-      <a class="nav-link" href="feedback.html">教师的反馈</a>
+      <a class="nav-link" href="timeline.html">孩子成长时间线</a>
+      <a class="nav-link active" href="feedback.html">教师的反馈</a>
     </nav>
     <div class="user-area">
       <select class="child-switcher" id="childSwitcher" title="切换孩子"></select>
@@ -78,11 +73,14 @@
   </header>
   <main class="main">
     <div class="page-title">
-      <h1>孩子成长时间线</h1>
-      <p>按时间回看每次任务提交、作品记录和成长反馈。</p>
+      <div>
+        <h1>教师的反馈</h1>
+        <p>集中查看老师对每次提交的点评和能力标签。</p>
+      </div>
+      <span class="feedback-count" id="feedbackCount"></span>
     </div>
-    <div id="emptyState" class="empty" style="display:none"><div><h2>还没有成长记录</h2><p>完成第一个亲子任务后，这里会记录孩子的成长足迹。</p></div></div>
-    <div class="timeline" id="timeline"></div>
+    <section class="empty" id="emptyState" style="display:none"><div><h2>还没有收到教师反馈</h2><p>正式提交任务后，老师点评会显示在这里。</p></div></section>
+    <section class="feedback-list" id="feedbackList"></section>
   </main>
   <script src="js/api.js"></script>
   <script>
@@ -93,25 +91,6 @@
       if (auth && auth.user) {
         document.getElementById("userName").textContent = "你好，" + auth.user.displayName;
         if (auth.user.role === "teacher") { window.location.href = "teacher.html"; return; }
-      }
-
-      function parseAttachments(value) {
-        try { return JSON.parse(value || "[]") || []; } catch (e) { return []; }
-      }
-
-      function attachmentHtml(value) {
-        var attachments = parseAttachments(value);
-        if (!attachments.length) return "";
-        var h = '<div class="attachment-preview">';
-        attachments.forEach(function (a) {
-          var name = esc(a.name || "附件");
-          var url = a.url || "";
-          if (url && String(a.type || "").indexOf("image/") === 0) h += '<img src="' + esc(url) + '" alt="' + name + '">';
-          else if (url && String(a.type || "").indexOf("audio/") === 0) h += '<audio controls src="' + esc(url) + '"></audio>';
-          else if (url && String(a.type || "").indexOf("video/") === 0) h += '<video controls src="' + esc(url) + '"></video>';
-          else h += '<div class="attachment-file">' + name + '</div>';
-        });
-        return h + '</div>';
       }
 
       function populateChildren(data) {
@@ -136,29 +115,37 @@
         return data.child && data.child.id;
       }
 
-      function render(items) {
-        document.getElementById("emptyState").style.display = items.length ? "none" : "grid";
-        document.getElementById("timeline").innerHTML = items.map(function (it) {
-          var h = '<div class="item' + (it.feedback_id ? ' has-feedback' : '') + '"><div class="card">';
-          h += '<p class="item-title">' + esc(it.title) + '</p>';
-          h += '<p class="item-meta">' + esc(it.task_type) + ' · 第 ' + esc(it.week_start) + ' 周 · 提交于 ' + esc(it.created_at) + '</p>';
-          h += '<div class="item-content">' + esc(it.content) + '</div>';
-          h += attachmentHtml(it.attachments);
-          if (it.feedback_id) {
-            h += '<div class="feedback-box"><p class="label">' + esc(it.teacher_name || "老师") + ' 的反馈</p><p class="content">' + esc(it.feedback_comment) + '</p>';
-            var tags = (it.feedback_tags || "").split(",").filter(function (t) { return t && t.trim(); });
-            if (tags.length) h += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(t.trim()) + '</span>'; }).join("") + '</div>';
-            h += '</div>';
-          }
-          return h + '</div></div>';
-        }).join("");
+      function shortText(text) {
+        text = String(text || "");
+        return text.length > 90 ? text.slice(0, 90) + "..." : text;
       }
 
-      function loadTimeline(childId) {
-        if (!childId) { render([]); return; }
+      function render(items, childId) {
+        var feedbackItems = items.filter(function (it) { return it.feedback_id; });
+        document.getElementById("feedbackCount").textContent = feedbackItems.length ? "共 " + feedbackItems.length + " 条反馈" : "";
+        document.getElementById("emptyState").style.display = feedbackItems.length ? "none" : "grid";
+        document.getElementById("feedbackList").innerHTML = feedbackItems.map(function (it) {
+          var h = '<article class="feedback-card">';
+          h += '<div class="feedback-head"><div><p class="feedback-title">' + esc(it.title) + '</p>';
+          h += '<p class="feedback-meta">' + esc(it.task_type) + ' · 第 ' + esc(it.week_start) + ' 周 · 反馈于 ' + esc(it.feedback_at || it.created_at) + '</p></div>';
+          h += '<span class="teacher-badge">' + esc(it.teacher_name || "老师") + '</span></div>';
+          h += '<div class="comment">' + esc(it.feedback_comment || "") + '</div>';
+          var tags = (it.feedback_tags || "").split(",").filter(function (t) { return t && t.trim(); });
+          if (tags.length) h += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(t.trim()) + '</span>'; }).join("") + '</div>';
+          h += '<div class="work-snapshot"><p class="label">本次提交</p><p>' + esc(shortText(it.content)) + '</p></div>';
+          return h + '</article>';
+        }).join("");
+        if (feedbackItems.length) {
+          trackEvent("feedback_read", { childId: childId, meta: { count: feedbackItems.length, source: "feedback-page" } });
+        }
+      }
+
+      function loadFeedback(childId) {
+        if (!childId) { render([], null); return; }
+        trackEvent("feedback_page_viewed", { childId: childId });
         api("/api/timeline?childId=" + childId).then(function (res) {
-          render(res.items || []);
-        }).catch(function (e) { console.error(e); render([]); });
+          render(res.items || [], childId);
+        }).catch(function (e) { console.error(e); render([], childId); });
       }
 
       function loadPage(childId) {
@@ -167,13 +154,13 @@
           if (data.selectedChildInvalid) localStorage.removeItem("selectedChildId");
           var selected = populateChildren(data);
           if (selected) setSelectedChildId(selected);
-          loadTimeline(selected);
-        }).catch(function (e) { console.error(e); render([]); });
+          loadFeedback(selected);
+        }).catch(function (e) { console.error(e); render([], null); });
       }
 
       document.getElementById("childSwitcher").addEventListener("change", function () {
         setSelectedChildId(this.value);
-        loadTimeline(this.value);
+        loadFeedback(this.value);
       });
       document.getElementById("logoutBtn").addEventListener("click", function () {
         api("/api/auth/logout", { method: "POST" }).catch(function () {});
