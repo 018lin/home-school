@@ -466,7 +466,7 @@
     return '<div class="assistant-followups" aria-label="建议追问">' +
       '<button type="button" data-copy="' + copyText + '">[复制] 未交家庭催交通知</button>' +
       '<button type="button" data-question="查看草稿卡点学生的具体任务与可能卡点。">[查看] 草稿卡点</button>' +
-      '<button type="button" data-question="帮我把本周定制任务批量延期48小时，并说明应优先延期哪些任务。">[延期] 批量延长48小时</button>' +
+      '<button type="button" data-question="帮我生成本周定制任务延期48小时方案，并说明应优先延期哪些任务。">[建议] 延期48小时方案</button>' +
       '<button type="button" data-question="生成下周任务合并与减负建议清单。">[方案] 下周减负清单</button>' +
       (progress.pendingFeedback ? '<button type="button" data-question="哪些提交最需要我优先点评？">[点评] ' + progress.pendingFeedback + '份待处理</button>' : '') +
       '</div>';

@@ -1213,6 +1213,131 @@ async function generateTeacherChatAnswerStream(question, history, docs, onDelta)
   return requestZhipuChatStream(buildTeacherChatMessages(question, history, docs), { maxTokens: 1000, temperature: 0.3 }, onDelta);
 }
 
+function answerTeacherMetaQuestion(question) {
+  const text = String(question || "").trim();
+  if (!/(你能做什么|你会做什么|你能干嘛|你可以干嘛|能帮.*什么|可以做什么|怎么用|使用帮助|帮助|介绍.*功能|功能.*介绍|你是谁|你好)/.test(text)) return null;
+  return {
+    answer: "我可以帮你把班级数据转成教师可执行的动作。\n\n" +
+      "1. 看进度：汇总本周完成率、已提交、草稿停滞、未开始学生。\n" +
+      "2. 找重点：识别待点评提交、困难线索、草稿卡点和未提交家庭。\n" +
+      "3. 写话术：生成催交通知、个别沟通话术、点评参考。\n" +
+      "4. 做诊断：结合任务量、定制任务数量、提交节奏判断是否需要减负。\n" +
+      "5. 给方案：整理下周任务合并、延期、分层跟进建议。\n\n" +
+      "你可以直接问：哪些学生还没交？本周任务负担重吗？帮我写今晚催交通知。哪些提交优先点评？下周任务怎么减负？",
+    sources: [{ title: "AI 助手能力说明" }]
+  };
+}
+
+function joinNames(rows, limit) {
+  rows = rows || [];
+  limit = limit || 8;
+  if (!rows.length) return "暂无";
+  const names = rows.slice(0, limit).map(function (row) { return row.name || row.child_name || row.childName; }).filter(Boolean);
+  return names.join("、") + (rows.length > limit ? "等" + rows.length + "人" : "");
+}
+
+async function getTeacherWeeklyActionContext() {
+  const weekStart = mondayOf(new Date());
+  const children = await getTeacherVisibleChildren();
+  const tasks = await db.prepare(
+    "SELECT t.*, c.name AS child_name FROM tasks t LEFT JOIN children c ON c.id = t.child_id " +
+    "WHERE t.week_start = ? AND (t.child_id IS NULL OR " + realStudentWhere("c") + ") ORDER BY t.id DESC"
+  ).all(weekStart, ...demoParams(2));
+  const submissions = await db.prepare(
+    "SELECT s.id, s.child_id, s.task_id, s.status, s.content, s.created_at, c.name AS child_name, t.title AS task_title, " +
+    "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count " +
+    "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
+    "WHERE t.week_start = ? AND " + realStudentWhere("c") + " ORDER BY s.created_at DESC"
+  ).all(weekStart, ...demoParams(2));
+  const submittedRows = submissions.filter(function (row) { return row.status === "submitted"; });
+  const draftRows = submissions.filter(function (row) { return row.status === "draft"; });
+  const submittedIds = new Set(submittedRows.map(function (row) { return row.child_id; }));
+  const draftIds = new Set(draftRows.filter(function (row) { return !submittedIds.has(row.child_id); }).map(function (row) { return row.child_id; }));
+  const viewedRows = await db.prepare(
+    "SELECT DISTINCT e.child_id, c.name AS child_name FROM events e JOIN children c ON c.id = e.child_id " +
+    "WHERE e.event_type IN ('task_card_viewed','task_detail_viewed') AND e.created_at >= ? AND " + realStudentWhere("c")
+  ).all(weekStart + " 00:00:00", ...demoParams(2));
+  const viewedIds = new Set(viewedRows.map(function (row) { return row.child_id; }));
+  const completed = children.filter(function (child) { return submittedIds.has(child.id); });
+  const draftStalled = children.filter(function (child) { return !submittedIds.has(child.id) && draftIds.has(child.id); });
+  const viewedNotStarted = children.filter(function (child) { return !submittedIds.has(child.id) && !draftIds.has(child.id) && viewedIds.has(child.id); });
+  const untouched = children.filter(function (child) { return !submittedIds.has(child.id) && !draftIds.has(child.id) && !viewedIds.has(child.id); });
+  const completionRate = children.length ? Math.round(completed.length / children.length * 100) : 0;
+  return {
+    weekStart: weekStart,
+    totalStudents: children.length,
+    tasks: tasks,
+    personalTasks: tasks.filter(function (task) { return task.child_id != null; }),
+    submissions: submittedRows,
+    pendingFeedback: submittedRows.filter(function (row) { return Number(row.feedback_count || 0) === 0; }),
+    drafts: draftRows,
+    completed: completed,
+    draftStalled: draftStalled,
+    viewedNotStarted: viewedNotStarted,
+    untouched: untouched,
+    completionRate: completionRate,
+    reminderWindow: "18:30 - 20:00"
+  };
+}
+
+async function answerTeacherLocalActionQuestion(question) {
+  const text = String(question || "");
+  const wantsProgress = /(未交|未提交|没交|没做|未做|完成率|进度|哪些学生|谁还)/.test(text);
+  const wantsReminder = /(催交|提醒|通知|话术|文案)/.test(text);
+  const wantsBurden = /(负担|减负|合并|任务量|太多|压力)/.test(text);
+  const wantsExtend = /(延期|延长|顺延|48小时|四十八小时)/.test(text);
+  if (!wantsProgress && !wantsReminder && !wantsBurden && !wantsExtend) return null;
+  const ctx = await getTeacherWeeklyActionContext();
+  const unstartedCount = ctx.viewedNotStarted.length + ctx.untouched.length;
+  const sources = [{ title: "本周任务与学生进度" }];
+
+  if (wantsExtend) {
+    const priority = ctx.personalTasks.length ? ctx.personalTasks.slice(0, 5).map(function (task) {
+      return "《" + task.title + "》" + (task.child_name ? "（" + task.child_name + "）" : "");
+    }).join("、") : "本周班级统一任务";
+    return {
+      answer: "可以给出延期方案，但当前系统还没有真实的“批量修改截止时间”工具；任务表也没有独立截止时间字段，所以我不能直接替你改数据库。\n\n" +
+        "建议优先延期：" + priority + "。\n\n" +
+        "依据：本周共 " + ctx.tasks.length + " 项任务，其中定制任务 " + ctx.personalTasks.length + " 项；" +
+        "班级 " + ctx.totalStudents + " 人，已提交 " + ctx.completed.length + " 人，完成率 " + ctx.completionRate + "%；" +
+        "草稿停滞 " + ctx.draftStalled.length + " 人，完全未开始/未提交 " + unstartedCount + " 人。\n\n" +
+        "建议动作：1. 定制任务先口头顺延 48 小时；2. 重复或低优先级任务合并为一项；3. 今晚 " + ctx.reminderWindow +
+        " 发提醒；4. 明天课堂先处理草稿停滞学生的共同卡点。",
+      sources: sources
+    };
+  }
+
+  if (wantsReminder) {
+    return {
+      answer: "可直接发送这段通知：\n\n各位家长好，本周家校共育任务还有部分同学未提交。建议今晚 " + ctx.reminderWindow +
+        " 前完成或先保存草稿；如果时间紧，请优先完成最核心的一项，并在提交中简单说明遇到的困难。老师会根据大家的完成情况调整后续任务量。\n\n" +
+        "发送对象建议：未提交 " + unstartedCount + " 人；草稿停滞 " + ctx.draftStalled.length + " 人可单独补一句“已看到你保存了草稿，可以先提交当前完成部分”。",
+      sources: sources
+    };
+  }
+
+  if (wantsBurden) {
+    const level = ctx.tasks.length >= 5 || ctx.personalTasks.length >= 3 || ctx.completionRate < 50 ? "偏重" : "可控";
+    return {
+      answer: "结论：本周任务负担初判为“" + level + "”。\n\n" +
+        "依据：本周任务 " + ctx.tasks.length + " 项，定制任务 " + ctx.personalTasks.length + " 项；完成率 " + ctx.completionRate +
+        "%；草稿停滞 " + ctx.draftStalled.length + " 人，未提交/未开始 " + unstartedCount + " 人。\n\n" +
+        "建议：把定制任务中目标相近的内容合并；保留一项必须提交任务，其余改为选做或口头打卡；对草稿停滞学生先看具体任务要求，再决定是否降低步骤数量。",
+      sources: sources
+    };
+  }
+
+  return {
+    answer: "本周进度：班级 " + ctx.totalStudents + " 人，已提交 " + ctx.completed.length + " 人，完成率 " + ctx.completionRate + "%；" +
+      "草稿停滞 " + ctx.draftStalled.length + " 人，已查看但未开始 " + ctx.viewedNotStarted.length + " 人，完全未动 " + ctx.untouched.length + " 人。\n\n" +
+      "已完成：" + joinNames(ctx.completed) + "。\n" +
+      "草稿停滞：" + joinNames(ctx.draftStalled) + "。\n" +
+      "已查看未开始：" + joinNames(ctx.viewedNotStarted) + "。\n" +
+      "完全未动：" + joinNames(ctx.untouched) + "。",
+    sources: sources
+  };
+}
+
 async function answerTeacherMetricQuestion(question) {
   const text = String(question || "");
   if (!/(未点评|待点评|优先.*点评|点评.*优先|还有.*点评)/.test(text)) return null;
@@ -1742,32 +1867,42 @@ async function handleApi(req, res, pathname, query) {
     if (!question) return sendJson(res, 400, { message: "请输入想了解的问题" });
     const wantsStream = query.get("stream") === "1";
     let indexInfo = { documentCount: 0, embeddedCount: 0 };
+
+    async function sendTeacherAnswer(result, provider, extra) {
+      extra = extra || {};
+      if (wantsStream) {
+        sendSseHeaders(res);
+        await streamPlainText(res, result.answer);
+        writeSse(res, "done", Object.assign({
+          sources: result.sources || [],
+          provider: provider,
+          indexedDocuments: indexInfo.documentCount,
+          embeddedDocuments: indexInfo.embeddedCount
+        }, extra));
+        return res.end();
+      }
+      return sendJson(res, 200, Object.assign({
+        answer: result.answer,
+        sources: result.sources || [],
+        provider: provider,
+        indexedDocuments: indexInfo.documentCount,
+        embeddedDocuments: indexInfo.embeddedCount
+      }, extra));
+    }
+
+    const metaAnswer = answerTeacherMetaQuestion(question);
+    if (metaAnswer) return sendTeacherAnswer(metaAnswer, "本地能力说明");
+
+    const localActionAnswer = await answerTeacherLocalActionQuestion(question);
+    if (localActionAnswer) return sendTeacherAnswer(localActionAnswer, "本地规则分析");
+
     try {
       indexInfo = await syncTeacherVectorIndex();
     } catch (e) {
       console.warn("教师 AI 索引同步失败：", e.message);
     }
     const metricAnswer = await answerTeacherMetricQuestion(question);
-    if (metricAnswer) {
-      if (wantsStream) {
-        sendSseHeaders(res);
-        await streamPlainText(res, metricAnswer.answer);
-        writeSse(res, "done", {
-          sources: metricAnswer.sources,
-          provider: "本地规则 + 向量索引",
-          indexedDocuments: indexInfo.documentCount,
-          embeddedDocuments: indexInfo.embeddedCount
-        });
-        return res.end();
-      }
-      return sendJson(res, 200, {
-        answer: metricAnswer.answer,
-        sources: metricAnswer.sources,
-        provider: "本地规则 + 向量索引",
-        indexedDocuments: indexInfo.documentCount,
-        embeddedDocuments: indexInfo.embeddedCount
-      });
-    }
+    if (metricAnswer) return sendTeacherAnswer(metricAnswer, "本地规则 + 向量索引");
     const matches = await searchTeacherKnowledge(question, 7);
     let answer = "";
     let aiError = "";
@@ -1786,12 +1921,12 @@ async function handleApi(req, res, pathname, query) {
         }
         if (!answer) {
           if (!matches.length) {
-            answer = "目前还没有检索到足够的班级资料。请先让家长完成绑定、填写档案或提交任务，再来询问。";
+            answer = "这个问题暂时没有命中具体班级资料。你仍然可以问我：本周谁未提交、任务负担是否偏重、帮我写催交通知、哪些提交优先点评、下周任务怎么减负。";
           } else {
-            answer = "我已找到相关班级资料，但 AI 暂时无法完成自然语言回答。最相关的记录是：" +
-              matches.slice(0, 3).map(function (doc) {
-                return "「" + doc.title + "」" + String(doc.content).split("\n")[0];
-              }).join("；") + "。";
+            answer = "外部 AI 生成暂时不可用，我先把可用资料整理给你：\n\n" +
+              matches.slice(0, 3).map(function (doc, index) {
+                return (index + 1) + ". " + doc.title + "：" + String(doc.content).split("\n")[0];
+              }).join("\n") + "\n\n你可以继续问更具体的问题，例如“哪些学生未提交”或“帮我写通知”，我会优先用本地数据直接回答。";
           }
           await streamPlainText(res, answer);
         }
@@ -1800,11 +1935,11 @@ async function handleApi(req, res, pathname, query) {
         answer = streamedAnswer;
         if (!answer) {
           answer = matches.length
-            ? "我已找到相关班级资料，但 AI 暂时无法完成自然语言回答。最相关的记录是：" +
-              matches.slice(0, 3).map(function (doc) {
-                return "「" + doc.title + "」" + String(doc.content).split("\n")[0];
-              }).join("；") + "。"
-            : "目前还没有检索到足够的班级资料。请先让家长完成绑定、填写档案或提交任务，再来询问。";
+            ? "外部 AI 生成暂时不可用，我先把可用资料整理给你：\n\n" +
+              matches.slice(0, 3).map(function (doc, index) {
+                return (index + 1) + ". " + doc.title + "：" + String(doc.content).split("\n")[0];
+              }).join("\n") + "\n\n你可以继续问更具体的问题，例如“哪些学生未提交”或“帮我写通知”，我会优先用本地数据直接回答。"
+            : "这个问题暂时没有命中具体班级资料。你仍然可以问我：本周谁未提交、任务负担是否偏重、帮我写催交通知、哪些提交优先点评、下周任务怎么减负。";
           await streamPlainText(res, answer);
         } else {
           writeSse(res, "error", { message: "AI 连接中断，以上为已生成内容。" });
@@ -1828,12 +1963,12 @@ async function handleApi(req, res, pathname, query) {
     }
     if (!answer) {
       if (!matches.length) {
-        answer = "目前还没有检索到足够的班级资料。请先让家长完成绑定、填写档案或提交任务，再来询问。";
+        answer = "这个问题暂时没有命中具体班级资料。你仍然可以问我：本周谁未提交、任务负担是否偏重、帮我写催交通知、哪些提交优先点评、下周任务怎么减负。";
       } else {
-        answer = "我已找到相关班级资料，但 AI 暂时无法完成自然语言回答。最相关的记录是：" +
-          matches.slice(0, 3).map(function (doc) {
-            return "「" + doc.title + "」" + String(doc.content).split("\n")[0];
-          }).join("；") + "。";
+        answer = "外部 AI 生成暂时不可用，我先把可用资料整理给你：\n\n" +
+          matches.slice(0, 3).map(function (doc, index) {
+            return (index + 1) + ". " + doc.title + "：" + String(doc.content).split("\n")[0];
+          }).join("\n") + "\n\n你可以继续问更具体的问题，例如“哪些学生未提交”或“帮我写通知”，我会优先用本地数据直接回答。";
       }
     }
     return sendJson(res, 200, {
