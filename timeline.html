@@ -4,70 +4,369 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>孩子成长时间线 · 家校共育</title>
-  <link rel="stylesheet" href="css/refined-ui.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --primary: #0066cc;
-      --primary-dark: #0057b8;
-      --accent: #0f766e;
-      --ink: #1d1d1f;
-      --text-sub: #6e737d;
-      --muted: #8a8f98;
-      --line: #dedfe4;
-      --line-soft: #eceef2;
-      --canvas: #f5f6f7;
+      --primary: #0878d1;
+      --primary-dark: #0565b4;
+      --teal: #0f766e;
+      --ink: #162432;
+      --text: #1f2937;
+      --text-sub: #667585;
+      --muted: #98a5b3;
+      --line: #dce6ee;
+      --line-soft: #e8eef3;
+      --canvas: #f4f7fa;
       --surface: #ffffff;
-      --surface-soft: #fafafa;
+      --surface-soft: #f8fafc;
+      --shadow-card: 0 4px 20px -2px rgba(17, 35, 48, 0.07);
     }
-    body { min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
-    .topbar { min-height: 64px; padding: 0 32px; display: flex; align-items: center; gap: 18px; background: rgba(255,255,255,0.9); border-bottom: 1px solid rgba(222,223,228,0.86); position: sticky; top: 0; z-index: 20; backdrop-filter: saturate(180%) blur(18px); }
-    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 16px; font-weight: 650; white-space: nowrap; }
-    .brand .logo { width: 28px; height: 28px; background: url("assets/site-logo.png") center / contain no-repeat; display: inline-block; }
-    .parent-nav { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 4px; overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(245,246,247,0.9); scrollbar-width: none; }
+    html, body { min-height: 100%; }
+    body {
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, select { font: inherit; }
+    .topbar {
+      min-height: 68px;
+      padding: 0 clamp(18px, 4vw, 48px);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: rgba(255, 255, 255, 0.95);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: saturate(160%) blur(16px);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex: 0 0 auto;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .brand .logo {
+      width: 28px;
+      height: 28px;
+      display: inline-block;
+      background: url("assets/site-logo.png") center / contain no-repeat;
+    }
+    .parent-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      max-width: min(460px, 48vw);
+      padding: 4px;
+      overflow-x: auto;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      background: #f6f8fa;
+      scrollbar-width: none;
+    }
     .parent-nav::-webkit-scrollbar { display: none; }
-    .nav-link { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0 13px; border-radius: 8px; color: var(--text-sub); font-size: 13px; font-weight: 650; line-height: 1; text-decoration: none; white-space: nowrap; }
-    .nav-link:hover { color: var(--ink); background: rgba(255,255,255,0.82); }
-    .nav-link.active { color: var(--ink); background: var(--surface); box-shadow: 0 6px 18px rgba(29,29,31,0.08); }
-    .user-area { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .child-switcher, .btn-logout { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
-    .child-switcher { max-width: 190px; padding: 0 10px; }
-    .btn-logout { padding: 0 14px; }
-    .user-name { color: var(--text-sub); font-size: 13px; white-space: nowrap; }
-    .main { width: min(860px, calc(100% - 48px)); max-width: 860px; margin: 0 auto; padding: 34px 0 72px; }
-    .page-title { margin-bottom: 24px; }
-    .page-title h1 { font-size: 28px; line-height: 1.18; font-weight: 680; }
-    .page-title p { margin-top: 8px; color: var(--text-sub); font-size: 14px; }
-    .empty { min-height: 320px; display: grid; place-items: center; text-align: center; color: var(--text-sub); background: var(--surface); border: 1px solid var(--line-soft); border-radius: 18px; box-shadow: 0 12px 40px rgba(29,29,31,0.06); padding: 24px; }
+    .nav-link {
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      padding: 0 14px;
+      border-radius: 8px;
+      color: var(--text-sub);
+      font-size: 13px;
+      font-weight: 650;
+      line-height: 1;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .nav-link:hover { color: var(--primary-dark); background: #eef6fd; }
+    .nav-link.active {
+      color: #fff;
+      background: var(--primary);
+      box-shadow: 0 5px 12px rgba(8, 120, 209, 0.2);
+    }
+    .user-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      margin-left: auto;
+    }
+    .child-switcher, .btn-logout {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .child-switcher {
+      width: 166px;
+      max-width: 166px;
+      padding: 0 12px;
+    }
+    .btn-logout { min-width: 84px; padding: 0 13px; }
+    .child-switcher:hover, .btn-logout:hover { border-color: #b8c7d4; color: var(--primary); }
+    .user-name {
+      max-width: 118px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-sub);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .main {
+      width: min(1040px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 42px 0 76px;
+    }
+    .page-title {
+      margin: 0 auto 34px;
+      text-align: center;
+    }
+    .page-title .eyebrow {
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+    }
+    .page-title h1 {
+      margin-top: 8px;
+      color: var(--ink);
+      font-size: clamp(27px, 3vw, 34px);
+      line-height: 1.2;
+      font-weight: 750;
+    }
+    .page-title p {
+      max-width: 560px;
+      margin: 10px auto 0;
+      color: var(--text-sub);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .timeline {
+      position: relative;
+      padding: 8px 0 4px;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      top: 26px;
+      bottom: 26px;
+      left: 137px;
+      width: 2px;
+      background: var(--line);
+    }
+    .item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 112px 50px minmax(0, 1fr);
+      margin-bottom: 22px;
+    }
+    .item:last-child { margin-bottom: 0; }
+    .timeline-date {
+      padding: 16px 18px 0 0;
+      text-align: right;
+    }
+    .timeline-date strong {
+      display: block;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+    .timeline-date span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .timeline-marker { position: relative; min-height: 100%; }
+    .timeline-marker::before {
+      content: "";
+      position: absolute;
+      top: 21px;
+      left: 50%;
+      width: 12px;
+      height: 12px;
+      border: 3px solid var(--primary);
+      border-radius: 50%;
+      background: var(--surface);
+      box-shadow: 0 0 0 5px var(--canvas);
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+    .item.has-feedback .timeline-marker::before { border-color: var(--teal); }
+    .card {
+      min-width: 0;
+      padding: 22px 24px 23px;
+      background: var(--surface);
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      box-shadow: var(--shadow-card);
+    }
+    .card:hover { border-color: #cfdae3; box-shadow: 0 8px 26px -4px rgba(17, 35, 48, 0.1); }
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .item-title {
+      min-width: 0;
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.5;
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .type-badge {
+      flex: 0 0 auto;
+      min-height: 26px;
+      padding: 4px 9px;
+      border: 1px solid #d6ebfb;
+      border-radius: 999px;
+      background: #eef7ff;
+      color: #0a67af;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+    .item-meta {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .submission-label {
+      margin-top: 18px;
+      color: var(--text-sub);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .item-content {
+      margin-top: 6px;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
+    .item-content.is-empty { color: var(--muted); }
+    .attachment-preview {
+      display: grid;
+      gap: 8px;
+      margin-top: 13px;
+    }
+    .attachment-preview img, .attachment-preview video, .attachment-preview audio { max-width: 100%; border-radius: 9px; }
+    .attachment-file {
+      padding: 9px 11px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      color: var(--text-sub);
+      font-size: 13px;
+    }
+    .feedback-box {
+      margin-top: 18px;
+      padding: 11px 0 0 14px;
+      border-top: 1px solid var(--line-soft);
+      border-left: 3px solid #e2a83b;
+    }
+    .feedback-head { display: flex; align-items: center; gap: 8px; }
+    .feedback-avatar {
+      width: 24px;
+      height: 24px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #e7f5f3;
+      color: var(--teal);
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .feedback-box .label { color: var(--ink); font-size: 12px; font-weight: 700; }
+    .feedback-box .content { margin-top: 6px; color: var(--text-sub); font-size: 13px; line-height: 1.7; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      padding: 3px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--text-sub);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .empty {
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      box-shadow: var(--shadow-card);
+    }
     .empty h2 { color: var(--ink); font-size: 20px; }
-    .empty p { margin-top: 8px; font-size: 14px; line-height: 1.7; }
-    .timeline { position: relative; padding-left: 26px; }
-    .timeline::before { content: ""; position: absolute; left: 7px; top: 8px; bottom: 8px; width: 2px; background: var(--line); }
-    .item { position: relative; margin-bottom: 20px; }
-    .item::before { content: ""; position: absolute; left: -25px; top: 22px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 3px solid var(--primary); box-shadow: 0 0 0 5px var(--canvas); }
-    .item.has-feedback::before { border-color: var(--accent); }
-    .card { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 18px; box-shadow: 0 12px 40px rgba(29,29,31,0.06); padding: 22px; }
-    .item-title { font-size: 17px; font-weight: 650; }
-    .item-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
-    .item-content { margin-top: 14px; color: var(--text-sub); font-size: 14px; line-height: 1.75; white-space: pre-line; }
-    .attachment-preview { margin-top: 10px; display: grid; gap: 8px; }
-    .attachment-preview img, .attachment-preview video, .attachment-preview audio { max-width: 100%; border-radius: 10px; }
-    .attachment-file { font-size: 13px; color: var(--text-sub); border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 10px; background: #fff; }
-    .feedback-box { margin-top: 14px; background: #fff8ed; border: 1px solid #f2d7ad; border-radius: 12px; padding: 14px 16px; }
-    .feedback-box .label { color: var(--ink); font-size: 12px; font-weight: 650; }
-    .feedback-box .content { margin-top: 6px; font-size: 13px; line-height: 1.7; color: var(--text-sub); }
-    .tags { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
-    .tag { font-size: 12px; background: #fff; border: 1px solid var(--line-soft); color: var(--text-sub); padding: 2px 10px; border-radius: 999px; }
-    @media (max-width: 900px) { .topbar { align-items: flex-start; flex-wrap: wrap; padding: 12px 18px; gap: 10px; } .parent-nav { order: 3; width: 100%; } .user-area { margin-left: auto; } .main { width: min(100% - 40px, 760px); padding-top: 28px; } }
-    @media (max-width: 640px) { .main { width: min(100% - 28px, 560px); padding-top: 22px; } .page-title h1 { font-size: 24px; } .card { padding: 18px; border-radius: 12px; } .user-name { display: none; } .child-switcher { max-width: 150px; } }
+    .empty p { margin-top: 8px; color: var(--text-sub); font-size: 14px; line-height: 1.7; }
+    @media (max-width: 960px) {
+      .topbar { align-items: center; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; gap: 10px 14px; }
+      .parent-nav { order: 3; width: 100%; max-width: none; }
+      .user-area { margin-left: auto; }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 11px 14px; }
+      .brand { font-size: 15px; }
+      .child-switcher { width: 138px; max-width: 138px; font-size: 13px; }
+      .btn-logout { min-width: 72px; padding: 0 9px; font-size: 13px; }
+      .user-name { display: none; }
+      .main { width: min(100% - 28px, 600px); padding: 28px 0 48px; }
+      .page-title { margin-bottom: 25px; text-align: left; }
+      .page-title h1 { font-size: 26px; }
+      .page-title p { margin-left: 0; font-size: 13px; }
+      .timeline { padding-top: 2px; }
+      .timeline::before { top: 25px; bottom: 24px; left: 11px; width: 2px; }
+      .item { grid-template-columns: 24px minmax(0, 1fr); margin-bottom: 18px; }
+      .timeline-date { grid-column: 2; grid-row: 1; padding: 0 0 8px; text-align: left; }
+      .timeline-date strong, .timeline-date span { display: inline; }
+      .timeline-date strong { font-size: 14px; }
+      .timeline-date span { margin: 0 0 0 8px; font-size: 12px; }
+      .timeline-marker { grid-column: 1; grid-row: 1 / span 2; }
+      .timeline-marker::before { top: 25px; left: 11px; width: 11px; height: 11px; }
+      .card { grid-column: 2; grid-row: 2; padding: 18px; }
+      .card-head { display: block; }
+      .type-badge { display: inline-flex; margin-top: 11px; }
+      .item-title { font-size: 16px; line-height: 1.48; }
+      .submission-label { margin-top: 15px; }
+    }
   </style>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="logo"></span>家校共育</div>
+    <div class="brand"><span class="logo" aria-hidden="true"></span>家校共育</div>
     <nav class="parent-nav" aria-label="家长端导航">
       <a class="nav-link" href="home.html">本周任务</a>
-      <a class="nav-link active" href="timeline.html">孩子成长时间线</a>
+      <a class="nav-link active" href="timeline.html" aria-current="page">孩子成长时间线</a>
       <a class="nav-link" href="feedback.html">教师的反馈</a>
     </nav>
     <div class="user-area">
@@ -78,6 +377,7 @@
   </header>
   <main class="main">
     <div class="page-title">
+      <div class="eyebrow">成长档案</div>
       <h1>孩子成长时间线</h1>
       <p>按时间回看每次任务提交、作品记录和成长反馈。</p>
     </div>
@@ -114,6 +414,43 @@
         return h + '</div>';
       }
 
+      function parseDate(value) {
+        var raw = String(value || "").trim();
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(raw) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)) {
+          raw = raw.replace(" ", "T") + "+08:00";
+        }
+        var date = new Date(raw);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
+      function formatDate(value) {
+        var date = parseDate(value);
+        if (!date) return { date: "日期待定", detail: "提交时间待定", full: "提交时间待定" };
+        var parts = new Intl.DateTimeFormat("zh-CN", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          weekday: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23"
+        }).formatToParts(date).reduce(function (result, part) {
+          result[part.type] = part.value;
+          return result;
+        }, {});
+        var year = parts.year;
+        var month = parts.month;
+        var day = parts.day;
+        var time = parts.hour + ":" + parts.minute;
+        return {
+          date: month + "月" + day + "日",
+          detail: parts.weekday + " " + time,
+          full: year + "年" + month + "月" + day + "日 " + time
+        };
+      }
+
       function populateChildren(data) {
         var switcher = document.getElementById("childSwitcher");
         switcher.innerHTML = "";
@@ -139,18 +476,28 @@
       function render(items) {
         document.getElementById("emptyState").style.display = items.length ? "none" : "grid";
         document.getElementById("timeline").innerHTML = items.map(function (it) {
-          var h = '<div class="item' + (it.feedback_id ? ' has-feedback' : '') + '"><div class="card">';
-          h += '<p class="item-title">' + esc(it.title) + '</p>';
-          h += '<p class="item-meta">' + esc(it.task_type) + ' · 第 ' + esc(it.week_start) + ' 周 · 提交于 ' + esc(it.created_at) + '</p>';
-          h += '<div class="item-content">' + esc(it.content) + '</div>';
+          var date = formatDate(it.created_at);
+          var title = String(it.title || "成长实践记录");
+          var content = String(it.content || "").trim();
+          var teacherName = String(it.teacher_name || "老师");
+          var teacherInitial = teacherName.slice(0, 1);
+          var h = '<article class="item' + (it.feedback_id ? ' has-feedback' : '') + '">';
+          h += '<div class="timeline-date"><strong>' + esc(date.date) + '</strong><span>' + esc(date.detail) + '</span></div>';
+          h += '<div class="timeline-marker" aria-hidden="true"></div>';
+          h += '<div class="card">';
+          h += '<div class="card-head"><h2 class="item-title" title="' + esc(title) + '">' + esc(title) + '</h2>';
+          h += '<span class="type-badge">' + esc(it.task_type || "成长实践") + '</span></div>';
+          h += '<p class="item-meta">提交于 ' + esc(date.full) + '</p>';
+          h += '<p class="submission-label">孩子的记录</p>';
+          h += '<div class="item-content' + (content ? '' : ' is-empty') + '">' + esc(content || "这次提交没有填写文字记录。") + '</div>';
           h += attachmentHtml(it.attachments);
           if (it.feedback_id) {
-            h += '<div class="feedback-box"><p class="label">' + esc(it.teacher_name || "老师") + ' 的反馈</p><p class="content">' + esc(it.feedback_comment) + '</p>';
+            h += '<div class="feedback-box"><div class="feedback-head"><span class="feedback-avatar" aria-hidden="true">' + esc(teacherInitial) + '</span><p class="label">' + esc(teacherName) + ' 的反馈</p></div><p class="content">' + esc(it.feedback_comment || "老师已完成点评") + '</p>';
             var tags = (it.feedback_tags || "").split(",").filter(function (t) { return t && t.trim(); });
             if (tags.length) h += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(t.trim()) + '</span>'; }).join("") + '</div>';
             h += '</div>';
           }
-          return h + '</div></div>';
+          return h + '</div></article>';
         }).join("");
       }
 
