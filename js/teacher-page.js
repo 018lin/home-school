@@ -435,7 +435,7 @@
       '<button id="assistantSend" class="assistant-send" type="submit">发送</button></form>' +
       '<div class="assistant-note">分析依据为系统内已授权的班级数据；家长行为信号仅用于支持沟通，不代表对家长关注程度的绝对判断。</div>' +
       (aiLoading ? '<div class="assistant-loading" role="status" aria-label="AI 正在加载">' +
-        '<img src="assets/site-logo.png" alt=""></div>' : '') + '</section>';
+        '<img src="assets/site-logo.png" alt=""><span>正在生成 AI 洞察</span></div>' : '') + '</section>';
   }
 
   function appendMessage(role, content, sources) {
