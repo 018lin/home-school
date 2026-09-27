@@ -99,6 +99,103 @@ a:hover {
   font-size: 0 !important;
 }
 
+.topbar:has(.teacher-nav) {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 30 !important;
+  justify-content: flex-start !important;
+}
+
+.topbar:has(.teacher-nav) .brand::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  display: inline-block;
+  flex: 0 0 auto;
+  background: url("../assets/site-logo.png") center / contain no-repeat;
+}
+
+.teacher-nav {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: fit-content;
+  padding: 4px !important;
+  overflow-x: auto !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 12px !important;
+  background: rgba(245, 246, 247, 0.86) !important;
+  scrollbar-width: none;
+}
+
+.teacher-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-link {
+  flex: 0 0 auto !important;
+  min-height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 13px !important;
+  border-radius: 8px !important;
+  color: var(--text-sub) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  background: transparent !important;
+}
+
+.nav-link:hover {
+  color: var(--ink) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+.nav-link.active {
+  color: var(--ink) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 6px 18px rgba(29, 29, 31, 0.08) !important;
+}
+
+.top-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+}
+
+.top-actions .user-name,
+.top-actions .count {
+  color: var(--text-sub) !important;
+  font-size: 13px !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 700px) {
+  .topbar:has(.teacher-nav) {
+    align-items: flex-start !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .topbar:has(.teacher-nav) .teacher-nav {
+    order: 3 !important;
+    flex-basis: 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .topbar:has(.teacher-nav) .top-actions {
+    margin-left: auto !important;
+  }
+}
+
 .main,
 .wrap {
   width: min(1120px, calc(100% - 48px)) !important;
