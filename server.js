@@ -976,6 +976,7 @@ const runningTeacherAiReports = new Set();
 const TEACHER_AI_REPORT_CACHE_KEY = "teacher:global-report";
 const TEACHER_AI_REPORT_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const TEACHER_AI_REPORT_ERROR_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const TEACHER_AI_REPORT_STALE_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function teacherReportContentHash(report) {
   const stable = {
@@ -1010,12 +1011,28 @@ async function getTeacherAiReportCache(cacheKey, contentHash) {
     "SELECT * FROM ai_report_cache WHERE cache_key = ? AND content_hash = ? AND status = 'ready'"
   ).get(cacheKey, contentHash);
   if (!row) return null;
+  return parseTeacherAiReportCacheRow(row);
+}
+
+async function getLatestTeacherAiReportCache(cacheKey) {
+  const row = await db.prepare(
+    "SELECT * FROM ai_report_cache WHERE cache_key = ? AND status = 'ready' ORDER BY updated_at DESC LIMIT 1"
+  ).get(cacheKey);
+  if (!row) return null;
+  return parseTeacherAiReportCacheRow(row, { allowStaleHash: true });
+}
+
+function parseTeacherAiReportCacheRow(row, options) {
+  options = options || {};
   const payload = parseJsonField(row.payload);
   const maxAge = row.error && !(payload && payload.ai)
     ? TEACHER_AI_REPORT_ERROR_CACHE_MAX_AGE_MS
-    : TEACHER_AI_REPORT_CACHE_MAX_AGE_MS;
+    : (options.allowStaleHash ? TEACHER_AI_REPORT_STALE_CACHE_MAX_AGE_MS : TEACHER_AI_REPORT_CACHE_MAX_AGE_MS);
   if (Date.now() - parseCacheTime(row.updated_at) > maxAge) return null;
-  return payload && payload.stats ? payload : null;
+  if (!payload || !payload.stats) return null;
+  payload.aiCacheHash = row.content_hash;
+  payload.aiCacheUpdatedAt = row.updated_at;
+  return payload;
 }
 
 async function saveTeacherAiReportCache(cacheKey, contentHash, payload, status, error) {
@@ -1068,7 +1085,6 @@ function triggerTeacherAiReportRefresh(cacheKey, contentHash, report) {
   runningTeacherAiReports.add(runningKey);
   setTimeout(async function () {
     try {
-      await saveTeacherAiReportCache(cacheKey, contentHash, report, "generating", "");
       const payload = await buildTeacherAiReportPayload(report);
       await saveTeacherAiReportCache(cacheKey, contentHash, payload, "ready", payload.aiError || "");
     } catch (e) {
@@ -2145,12 +2161,25 @@ async function handleApi(req, res, pathname, query) {
     if (cachedReport) {
       cachedReport.aiCached = true;
       cachedReport.aiPending = false;
+      cachedReport.aiLoadingText = "AI 洞察已更新";
       return sendJson(res, 200, cachedReport);
     }
 
     const started = triggerTeacherAiReportRefresh(TEACHER_AI_REPORT_CACHE_KEY, contentHash, report);
+    const staleReport = await getLatestTeacherAiReportCache(TEACHER_AI_REPORT_CACHE_KEY);
+    if (staleReport && staleReport.ai) {
+      staleReport.aiCached = true;
+      staleReport.aiStale = true;
+      staleReport.aiPending = true;
+      staleReport.aiStatus = started ? "refreshing" : "running";
+      staleReport.aiLoadingText = "正在更新为最新班级数据";
+      staleReport.aiError = "当前先展示上一次 AI 分析，新报告正在后台更新";
+      return sendJson(res, 200, staleReport);
+    }
+
     report.aiPending = true;
     report.aiStatus = started ? "generating" : "running";
+    report.aiLoadingText = "正在生成第一份 AI 洞察";
     report.aiError = "AI 分析正在后台生成，当前先展示本地规则分析结果";
     return sendJson(res, 200, report);
   }

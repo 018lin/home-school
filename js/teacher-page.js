@@ -418,10 +418,11 @@
 
   function createAssistantShell(report, aiLoading) {
     var source = report.source || "本地规则分析";
+    var loadingText = report.aiLoadingText || (report.aiStale ? "正在更新为最新班级数据" : "正在生成 AI 洞察");
     return '<section class="assistant-shell' + (aiLoading ? " is-ai-loading" : "") + '"' +
       (aiLoading ? ' aria-busy="true"' : "") + '><div class="assistant-head"><div class="assistant-brand">' +
       '<span class="assistant-mark">✦</span><div><div class="assistant-title">AI 班级助手</div>' +
-      '<div class="assistant-status">' + (aiLoading ? "正在分析班级数据…" : "已读取学生档案、任务、提交与点评记录") +
+      '<div class="assistant-status">' + (aiLoading ? esc(loadingText) + "…" : "已读取学生档案、任务、提交与点评记录") +
       '</div></div></div>' +
       '<span class="assistant-source">' + esc(source) + '</span></div>' +
       renderReportBadges(report) +
@@ -435,7 +436,7 @@
       '<button id="assistantSend" class="assistant-send" type="submit">发送</button></form>' +
       '<div class="assistant-note">分析依据为系统内已授权的班级数据；家长行为信号仅用于支持沟通，不代表对家长关注程度的绝对判断。</div>' +
       (aiLoading ? '<div class="assistant-loading" role="status" aria-label="AI 正在加载">' +
-        '<img src="assets/site-logo.png" alt=""><span>正在生成 AI 洞察</span></div>' : '') + '</section>';
+        '<img src="assets/site-logo.png" alt=""><span>' + esc(loadingText) + '</span></div>' : '') + '</section>';
   }
 
   function appendMessage(role, content, sources) {
@@ -626,11 +627,23 @@
   }
 
   var aiCacheKey = cacheKey("Report");
+  var aiLoadingPhases = [
+    "正在读取班级数据",
+    "正在分析家长参与节奏",
+    "正在生成下周任务建议",
+    "正在整理教师行动清单"
+  ];
+
+  function aiLoadingText(attempt, report) {
+    if (report && report.aiLoadingText) return report.aiLoadingText;
+    return aiLoadingPhases[Math.min(aiLoadingPhases.length - 1, Math.floor((attempt || 0) / 2))];
+  }
 
   function loadAiReport(baseReport, attempt) {
     attempt = attempt || 0;
     return api("/api/teacher/global-report?ai=1").then(function (aiReport) {
       if (aiReport.aiPending) {
+        aiReport.aiLoadingText = aiLoadingText(attempt, aiReport);
         renderReport(aiReport, { aiLoading: true });
         if (attempt < 18) {
           window.setTimeout(function () { loadAiReport(baseReport, attempt + 1); }, attempt < 3 ? 1200 : 2500);
@@ -650,6 +663,7 @@
   }
 
   api("/api/teacher/global-report?local=1").then(function (report) {
+    report.aiLoadingText = aiLoadingPhases[0];
     renderReport(report, { aiLoading: !!report.aiEnabled });
     if (!report.aiEnabled) return null;
     return loadAiReport(report, 0);
