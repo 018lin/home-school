@@ -19,7 +19,8 @@
 
   var state = {
     messages: [],
-    sending: false
+    sending: false,
+    report: null
   };
 
   function cacheKey(suffix) {
@@ -416,53 +417,101 @@
     return text;
   }
 
-  function getBriefingMetrics(report) {
+  function getStudentProgress(report) {
     var stats = report.stats || {};
-    var difficulty = 0;
-    var behaviorEvents = 0;
-    (report.dimensions || []).forEach(function (dim) {
-      if (dim.key === "textMaterials" && dim.indicators) difficulty = dim.indicators.difficulty || 0;
-      if (dim.key === "behaviorSignals" && dim.indicators) behaviorEvents = dim.indicators.events || 0;
-    });
-    return [
-      { label: "重点跟进", value: difficulty ? difficulty + "条困难线索" : "暂无困难线索", tone: difficulty ? "warn" : "calm" },
-      { label: "活跃期", value: stats.peakCompletionTime || "暂无", tone: "accent" },
-      { label: "待点评", value: (stats.weekPendingFeedback || 0) + "份", tone: stats.weekPendingFeedback ? "warn" : "calm" },
-      { label: "行为记录", value: behaviorEvents + "次", tone: behaviorEvents ? "accent" : "muted" }
-    ];
+    var progress = report.studentProgress || {};
+    var total = progress.totalStudents || stats.totalStudents || 0;
+    var submitted = progress.submittedCount != null ? progress.submittedCount : (stats.weekSubmittedStudents || 0);
+    var rate = progress.completionRate != null ? progress.completionRate : (total ? Math.round(submitted / total * 100) : 0);
+    var weekTasks = progress.weekTaskCount != null ? progress.weekTaskCount : (stats.weekTaskCount || 0);
+    var customTasks = progress.personalizedWeekTaskCount != null ? progress.personalizedWeekTaskCount : (stats.customTaskCount || 0);
+    var riskLevel = progress.riskLevel || (rate < 30 || (weekTasks >= 5 && rate < 50) ? "red" : (rate < 70 || customTasks >= 3 ? "yellow" : "green"));
+    var riskTitle = progress.riskTitle || (riskLevel === "red" ? "任务进度严重滞后" : (riskLevel === "yellow" ? "任务推进需要干预" : "任务进度正常"));
+    return {
+      riskLevel: riskLevel,
+      riskTitle: riskTitle,
+      completionRate: rate,
+      totalStudents: total,
+      weekTaskCount: weekTasks,
+      personalizedWeekTaskCount: customTasks,
+      submittedCount: submitted,
+      pendingFeedback: progress.pendingFeedback != null ? progress.pendingFeedback : (stats.weekPendingFeedback || 0),
+      suggestedReminderWindow: progress.suggestedReminderWindow || "18:30 - 20:00",
+      completed: progress.completed || [],
+      draftStalled: progress.draftStalled || [],
+      viewedNotStarted: progress.viewedNotStarted || [],
+      untouched: progress.untouched || [],
+      noAnswerCount: progress.noAnswerCount != null ? progress.noAnswerCount : Math.max(0, total - submitted)
+    };
   }
 
-  function renderFollowupChips() {
+  function namesText(items, field, limit) {
+    items = items || [];
+    field = field || "name";
+    limit = limit || 8;
+    if (!items.length) return "暂无";
+    var names = items.slice(0, limit).map(function (item) { return item[field] || item.childName || item.name; }).filter(Boolean);
+    return names.join("、") + (items.length > limit ? "等" + items.length + "人" : "");
+  }
+
+  function reminderTemplate(report) {
+    var progress = getStudentProgress(report || {});
+    return "各位家长好，本周家校共育任务还有部分同学未提交。建议今晚 " +
+      progress.suggestedReminderWindow + " 前完成或先保存草稿；如果时间紧，请优先完成最核心的一项，并在提交中简单说明遇到的困难。老师会根据大家的完成情况调整后续任务量。";
+  }
+
+  function renderFollowupChips(report) {
+    var progress = getStudentProgress(report || state.report || {});
+    var copyText = esc(reminderTemplate(report || state.report || {}));
     return '<div class="assistant-followups" aria-label="建议追问">' +
-      '<button type="button" data-question="哪些提交最需要我优先点评？">优先点评</button>' +
-      '<button type="button" data-question="本周任务负担是否可能偏重？">任务负担</button>' +
-      '<button type="button" data-question="家长通常在什么时间提交任务？">提交时段</button>' +
-      '<button type="button" data-question="请给我一份下周任务调整建议。">下周建议</button>' +
+      '<button type="button" data-copy="' + copyText + '">[复制] 未交家庭催交通知</button>' +
+      '<button type="button" data-question="查看草稿卡点学生的具体任务与可能卡点。">[查看] 草稿卡点</button>' +
+      '<button type="button" data-question="帮我把本周定制任务批量延期48小时，并说明应优先延期哪些任务。">[延期] 批量延长48小时</button>' +
+      '<button type="button" data-question="生成下周任务合并与减负建议清单。">[方案] 下周减负清单</button>' +
+      (progress.pendingFeedback ? '<button type="button" data-question="哪些提交最需要我优先点评？">[点评] ' + progress.pendingFeedback + '份待处理</button>' : '') +
       '</div>';
   }
 
   function renderBriefingBubble(report) {
-    var stats = report.stats || {};
-    var submitted = stats.weekSubmittedStudents || 0;
-    var pending = stats.weekPendingFeedback || 0;
-    var title = pending > 0 ? "今天先处理未点评提交" : "今天可以把重点放在任务优化";
-    var metrics = getBriefingMetrics(report).map(function (item) {
-      return '<span class="briefing-metric ' + item.tone + '"><span>' + esc(item.label) +
-        '</span><b>' + esc(item.value) + '</b></span>';
-    }).join("");
-    var body = '本周已有' + submitted + '位学生与家长完成任务，' +
-      (pending > 0 ? '还有' + pending + '份提交等待点评。' : '本周提交目前已全部点评。') +
-      '提交高峰为' + (stats.peakCompletionTime || '暂无') + '，可以据此安排提醒节奏。';
-    var behavior = "";
-    (report.dimensions || []).forEach(function (dim) {
-      if (dim.key === "behaviorSignals") behavior = buildBehaviorAnalysis(dim);
-    });
-    return '<div class="briefing-card"><div class="briefing-kicker">每日学情晨报</div>' +
-      '<div class="briefing-title">' + esc(title) + '</div>' +
-      '<p>' + esc(body) + '</p><div class="briefing-metrics">' + metrics + '</div>' +
-      (behavior ? '<p class="briefing-secondary">' + esc(behavior) + '</p>' : '') +
-      (report.ai && report.ai.summary ? '<p class="briefing-secondary">' + esc(report.ai.summary) + '</p>' : '') +
-      renderFollowupChips() + '</div>';
+    var progress = getStudentProgress(report);
+    var riskLabel = progress.riskLevel === "red" ? "红色风险" : (progress.riskLevel === "yellow" ? "黄色预警" : "绿色正常");
+    var completedDetail = progress.completed.length
+      ? progress.completed.slice(0, 6).map(function (item) {
+          return esc(item.name) + "（" + (item.pendingFeedback ? "待点评" : "已点评") + "）";
+        }).join("、") + (progress.completed.length > 6 ? "等" + progress.completed.length + "人" : "")
+      : "暂无";
+    var draftDetail = progress.draftStalled.length
+      ? progress.draftStalled.slice(0, 5).map(function (item) {
+          return esc(item.name) + "（《" + esc(item.taskTitle || "本周任务") + "》草稿）";
+        }).join("、") + (progress.draftStalled.length > 5 ? "等" + progress.draftStalled.length + "人" : "")
+      : "暂无";
+    var noAnswerDetail = namesText(progress.untouched.concat(progress.viewedNotStarted), "name", 8);
+    var diagnosis = progress.weekTaskCount >= 5 || progress.personalizedWeekTaskCount >= 3
+      ? "本周任务量偏高，尤其是定制任务占比较大，容易让家庭产生观望或拖延。"
+      : "本周任务量处于可控范围，当前主要问题在提醒触达与开始动作。";
+    var completionLine = "本周已发布 " + progress.weekTaskCount + " 项任务（含 " + progress.personalizedWeekTaskCount +
+      " 项定制任务），班级共 " + progress.totalStudents + " 人，目前 " + progress.submittedCount +
+      " 人提交，完成率 " + progress.completionRate + "%。";
+    return '<div class="briefing-card action-brief"><section class="brief-section status-alert ' + progress.riskLevel + '">' +
+      '<div class="briefing-kicker">学情风险提示</div><div class="briefing-title"><span class="risk-dot" aria-hidden="true"></span>' +
+      esc(progress.riskTitle) + '</div><p>' + esc(completionLine) + '</p><div class="briefing-metrics">' +
+      '<span class="briefing-metric ' + progress.riskLevel + '"><span>状态定级</span><b>' + esc(riskLabel) + '</b></span>' +
+      '<span class="briefing-metric"><span>任务量</span><b>' + progress.weekTaskCount + '项 / 定制' + progress.personalizedWeekTaskCount + '项</b></span>' +
+      '<span class="briefing-metric"><span>完成率</span><b>' + progress.completionRate + '%</b></span>' +
+      '<span class="briefing-metric"><span>建议提醒时段</span><b>' + esc(progress.suggestedReminderWindow) + '</b></span>' +
+      '</div></section><section class="brief-section"><div class="brief-section-title">学生进度分流</div>' +
+      '<div class="progress-lanes"><div><b>已完成（' + progress.completed.length + '人）</b><p>' + completedDetail + '</p></div>' +
+      '<div><b>草稿卡点（' + progress.draftStalled.length + '人）</b><p>' + draftDetail + '</p></div>' +
+      '<div><b>完全未做（' + progress.noAnswerCount + '人）</b><p>' + esc(noAnswerDetail) +
+      (progress.viewedNotStarted.length ? '；其中 ' + progress.viewedNotStarted.length + ' 位已查看但未开始' : '') + '</p></div></div></section>' +
+      '<section class="brief-section"><div class="brief-section-title">教学诊断与负担评估</div><p>' +
+      esc(diagnosis + "建议把提醒安排在 " + progress.suggestedReminderWindow + "，并优先处理草稿停滞学生的共同卡点。") + '</p></section>' +
+      '<section class="brief-section"><div class="brief-section-title">建议下一步行动</div><ol class="next-steps">' +
+      '<li><b>任务减负：</b>将定制任务截止时间顺延 48 小时，或合并重复口头打卡。</li>' +
+      '<li><b>重点讲评：</b>先查看草稿卡点学生涉及的任务，明日课堂优先复习同类要求。</li>' +
+      '<li><b>定向提醒：</b>在 ' + esc(progress.suggestedReminderWindow) + ' 向未提交家庭发送提醒。</li>' +
+      '</ol><div class="copy-template"><span>催交通知模板</span><p>' + esc(reminderTemplate(report)) + '</p></div></section>' +
+      renderFollowupChips(report) + '</div>';
   }
 
   function createAssistantShell(report, aiLoading) {
@@ -542,7 +591,7 @@
     if (!messageEl) return;
     var wrap = messageEl.children[1];
     if (!wrap || wrap.querySelector(".assistant-followups")) return;
-    wrap.insertAdjacentHTML("beforeend", renderFollowupChips());
+    wrap.insertAdjacentHTML("beforeend", renderFollowupChips(state.report));
   }
 
   function createStreamingAssistantMessage(onDone) {
@@ -735,6 +784,7 @@
 
   function renderReport(report, options) {
     options = options || {};
+    state.report = report;
     var isAiPage = document.body.classList.contains("teacher-ai-page");
     var ai = report.ai || {};
     var stats = report.stats || {};
@@ -823,8 +873,18 @@
     });
     document.querySelectorAll(".assistant-shell").forEach(function (shell) {
       shell.addEventListener("click", function (event) {
-        var button = event.target.closest("button[data-question]");
+        var button = event.target.closest("button[data-question], button[data-copy]");
         if (!button || !shell.contains(button)) return;
+        var copy = button.getAttribute("data-copy");
+        if (copy) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(copy).then(function () {
+              button.textContent = "已复制";
+              window.setTimeout(function () { button.textContent = "[复制] 未交家庭催交通知"; }, 1600);
+            }).catch(function () {});
+          }
+          return;
+        }
         sendQuestion(button.getAttribute("data-question"));
       });
     });

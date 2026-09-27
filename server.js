@@ -1932,7 +1932,8 @@ async function handleApi(req, res, pathname, query) {
     const localOnly = query.get("local") === "1";
     const allChildCount = await db.prepare("SELECT COUNT(*) AS n FROM children").get().n;
     const weekStart = mondayOf(new Date());
-    const allTasks = await db.prepare("SELECT id, child_id, week_start FROM tasks").all();
+    const allTasks = await db.prepare("SELECT id, child_id, title, task_type, week_start, created_at FROM tasks").all();
+    const weekTasks = allTasks.filter(function (task) { return task.week_start === weekStart; });
     const children = await getTeacherVisibleChildren();
     const submissions = await db.prepare(
       "SELECT s.id, s.child_id, s.task_id, s.content, s.sub_type, s.attachments, s.created_at, " +
@@ -1947,6 +1948,11 @@ async function handleApi(req, res, pathname, query) {
     const weekPendingFeedback = weekSubmissions.filter(function (row) {
       return Number(row.feedback_count || 0) === 0;
     }).length;
+    const weekDraftRows = await db.prepare(
+      "SELECT s.id, s.child_id, s.task_id, s.created_at, c.name AS child_name, t.title AS task_title " +
+      "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
+      "WHERE s.status = 'draft' AND t.week_start = ? AND " + realStudentWhere("c") + " ORDER BY s.created_at DESC"
+    ).all(weekStart, ...demoParams(2));
 
     function parseAnswers(row) {
       try { return JSON.parse(row.q_answers || "{}") || {}; } catch (e) { return {}; }
@@ -2169,6 +2175,83 @@ async function handleApi(req, res, pathname, query) {
     const behaviorAvgActiveDays = behaviorActiveStudents > 0
       ? Math.round(behaviorActiveDaysTotal / behaviorActiveStudents) : 0;
 
+    const behaviorByChildId = {};
+    behaviorChildRows.forEach(function (row) { behaviorByChildId[row.childId] = row; });
+    const weekSubmissionByChild = {};
+    weekSubmissions.forEach(function (row) {
+      if (!weekSubmissionByChild[row.child_id]) {
+        weekSubmissionByChild[row.child_id] = {
+          id: row.child_id,
+          name: row.child_name,
+          taskCount: 0,
+          pendingFeedback: 0,
+          tasks: []
+        };
+      }
+      weekSubmissionByChild[row.child_id].taskCount++;
+      if (Number(row.feedback_count || 0) === 0) weekSubmissionByChild[row.child_id].pendingFeedback++;
+      if (row.task_title) weekSubmissionByChild[row.child_id].tasks.push(row.task_title);
+    });
+    const draftByChild = {};
+    weekDraftRows.forEach(function (row) {
+      if (weekSubmittedStudents.has(row.child_id)) return;
+      if (!draftByChild[row.child_id]) {
+        draftByChild[row.child_id] = {
+          id: row.child_id,
+          name: row.child_name,
+          taskTitle: row.task_title || "本周任务",
+          draftCount: 0
+        };
+      }
+      draftByChild[row.child_id].draftCount++;
+    });
+    const draftIds = new Set(Object.keys(draftByChild).map(function (id) { return Number(id); }));
+    const viewedNotStarted = [];
+    const untouched = [];
+    children.forEach(function (child) {
+      if (weekSubmittedStudents.has(child.id) || draftIds.has(child.id)) return;
+      const behavior = behaviorByChildId[child.id];
+      if (behavior && behavior.touchpoints > 0) {
+        viewedNotStarted.push({ id: child.id, name: child.name, touchpoints: behavior.touchpoints });
+      } else {
+        untouched.push({ id: child.id, name: child.name });
+      }
+    });
+    function reminderWindowForPeak(label) {
+      if (label === "晚间") return "18:30 - 20:30";
+      if (label === "下午") return "16:30 - 18:00";
+      if (label === "上午") return "07:30 - 09:00";
+      if (label === "周末") return "周六 09:00 - 11:00";
+      return "18:30 - 20:00";
+    }
+    const completionRate = pct(weekSubmittedStudents.size, children.length);
+    const personalizedWeekTasks = weekTasks.filter(function (task) { return task.child_id != null; }).length;
+    let riskLevel = "green";
+    let riskTitle = "任务进度正常";
+    if (children.length > 0 && (completionRate < 30 || (weekTasks.length >= 5 && completionRate < 50))) {
+      riskLevel = "red";
+      riskTitle = "任务进度严重滞后";
+    } else if (children.length > 0 && (completionRate < 70 || weekPendingFeedback > 0 || personalizedWeekTasks >= 3)) {
+      riskLevel = "yellow";
+      riskTitle = "任务推进需要干预";
+    }
+    const studentProgress = {
+      riskLevel: riskLevel,
+      riskTitle: riskTitle,
+      completionRate: completionRate,
+      totalStudents: children.length,
+      weekTaskCount: weekTasks.length,
+      personalizedWeekTaskCount: personalizedWeekTasks,
+      submittedCount: weekSubmittedStudents.size,
+      pendingFeedback: weekPendingFeedback,
+      suggestedReminderWindow: reminderWindowForPeak(peakTime.label),
+      completed: Object.keys(weekSubmissionByChild).map(function (id) { return weekSubmissionByChild[id]; }),
+      draftStalled: Object.keys(draftByChild).map(function (id) { return draftByChild[id]; }),
+      viewedNotStarted: viewedNotStarted,
+      untouched: untouched,
+      noAnswerCount: viewedNotStarted.length + untouched.length
+    };
+
     const profileCompleteness = pct(completeProfiles, children.length);
     const topCaregivers = topEntries(caregiverDist, 4);
     const topInterests = topEntries(interestDist, 5);
@@ -2194,11 +2277,12 @@ async function handleApi(req, res, pathname, query) {
         avgTextLength: avgTextLength,
         totalTaskCount: allTasks.length,
         customTaskCount: allTasks.filter(function (task) { return task.child_id != null; }).length,
-        weekTaskCount: allTasks.filter(function (task) { return task.week_start === weekStart; }).length,
+        weekTaskCount: weekTasks.length,
         weekSubmittedStudents: weekSubmittedStudents.size,
         weekPendingFeedback: weekPendingFeedback,
         weekStart: weekStart
       },
+      studentProgress: studentProgress,
       dimensions: [
         {
           key: "profiles",

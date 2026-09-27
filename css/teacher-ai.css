@@ -607,6 +607,161 @@ body.teacher-ai-page.global-report .main::before {
   opacity: 0.72;
 }
 
+.teacher-ai-page .action-brief {
+  display: grid;
+  gap: 14px;
+}
+
+.teacher-ai-page .brief-section {
+  padding-top: 14px;
+  border-top: 1px solid #edf0f5;
+}
+
+.teacher-ai-page .brief-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.teacher-ai-page .status-alert {
+  padding: 14px;
+  border: 1px solid #e7ecf3;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.teacher-ai-page .status-alert.red {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.teacher-ai-page .status-alert.yellow {
+  border-color: #fedf89;
+  background: #fffbeb;
+}
+
+.teacher-ai-page .status-alert.green {
+  border-color: #cdebdc;
+  background: #f0fbf5;
+}
+
+.teacher-ai-page .risk-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #667085;
+  vertical-align: 0.08em;
+}
+
+.teacher-ai-page .status-alert.red .risk-dot {
+  background: #d92d20;
+}
+
+.teacher-ai-page .briefing-metric.red b {
+  color: #b42318;
+}
+
+.teacher-ai-page .status-alert.yellow .risk-dot {
+  background: #f79009;
+}
+
+.teacher-ai-page .briefing-metric.yellow b {
+  color: #b54708;
+}
+
+.teacher-ai-page .status-alert.green .risk-dot {
+  background: #12b76a;
+}
+
+.teacher-ai-page .briefing-metric.green b {
+  color: #087443;
+}
+
+.teacher-ai-page .briefing-metric.red {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.teacher-ai-page .briefing-metric.yellow {
+  border-color: #fedf89;
+  background: #fffbeb;
+}
+
+.teacher-ai-page .briefing-metric.green {
+  border-color: #cdebdc;
+  background: #f0fbf5;
+}
+
+.teacher-ai-page .brief-section-title {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.teacher-ai-page .progress-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.teacher-ai-page .progress-lanes > div {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #e7ecf3;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.teacher-ai-page .progress-lanes b {
+  display: block;
+  color: #111827;
+  font-size: 13px;
+}
+
+.teacher-ai-page .progress-lanes p {
+  margin-top: 7px;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.65;
+  word-break: break-word;
+}
+
+.teacher-ai-page .next-steps {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: #344054;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.teacher-ai-page .next-steps b {
+  color: #111827;
+}
+
+.teacher-ai-page .copy-template {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f0f6ff;
+}
+
+.teacher-ai-page .copy-template span {
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.teacher-ai-page .copy-template p {
+  margin-top: 5px;
+  color: #1f2937;
+  font-size: 13px;
+}
+
 .teacher-ai-page .assistant-followups {
   display: flex;
   flex-wrap: wrap;
@@ -781,6 +936,10 @@ body.teacher-ai-page.global-report .main::before {
 
   .teacher-ai-page .briefing-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-ai-page .progress-lanes {
+    grid-template-columns: 1fr;
   }
 
   .teacher-ai-page .assistant-compose {
