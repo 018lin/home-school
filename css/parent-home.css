@@ -1,0 +1,736 @@
+/* Parent home page: keep the family workflow in one stable, task-first layout. */
+:root {
+  --parent-canvas: #f4f7fa;
+  --parent-surface: #ffffff;
+  --parent-surface-soft: #f8fafc;
+  --parent-ink: #162432;
+  --parent-sub: #667585;
+  --parent-muted: #98a5b3;
+  --parent-line: #dfe7ee;
+  --parent-line-soft: #e9eef3;
+  --parent-primary: #0878d1;
+  --parent-primary-hover: #0565b4;
+  --parent-primary-soft: #edf6ff;
+  --parent-teal: #0f766e;
+  --parent-success: #157a45;
+  --parent-warning-bg: #fff8e8;
+  --parent-warning-line: #f2d7a4;
+  --parent-warning-text: #8a4b10;
+  --parent-radius: 14px;
+  --parent-radius-sm: 10px;
+  --parent-shadow: 0 12px 32px rgba(30, 64, 90, 0.07);
+}
+
+.parent-home {
+  min-width: 320px;
+  overflow-x: hidden;
+  background: var(--parent-canvas) !important;
+  color: var(--parent-ink) !important;
+}
+
+.parent-home .topbar {
+  min-height: 68px !important;
+  padding: 0 clamp(18px, 4vw, 48px) !important;
+  gap: 20px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-bottom: 1px solid var(--parent-line) !important;
+  box-shadow: 0 1px 0 rgba(30, 64, 90, 0.02) !important;
+  backdrop-filter: saturate(160%) blur(16px) !important;
+}
+
+.parent-home .brand {
+  flex: 0 0 auto;
+  color: var(--parent-ink) !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+}
+
+.parent-home .brand .logo {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.parent-home .parent-nav {
+  flex: 0 1 auto;
+  max-width: min(440px, 46vw);
+  border-color: var(--parent-line-soft) !important;
+  background: #f6f8fa !important;
+}
+
+.parent-home .nav-link {
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  color: var(--parent-sub) !important;
+}
+
+.parent-home .nav-link.active {
+  color: var(--parent-ink) !important;
+  background: var(--parent-surface) !important;
+  box-shadow: 0 4px 12px rgba(30, 64, 90, 0.08) !important;
+}
+
+.parent-home .user-area {
+  gap: 10px !important;
+  min-width: 0;
+}
+
+.parent-home .child-switcher,
+.parent-home .btn-logout {
+  min-height: 40px !important;
+  border-color: var(--parent-line) !important;
+  border-radius: 9px !important;
+  background: var(--parent-surface) !important;
+  color: var(--parent-ink) !important;
+  white-space: nowrap !important;
+}
+
+.parent-home .child-switcher {
+  width: 166px;
+  max-width: 166px !important;
+  padding: 0 12px !important;
+}
+
+.parent-home .user-name {
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--parent-sub) !important;
+}
+
+.parent-home .btn-logout {
+  flex: 0 0 auto;
+  min-width: 84px;
+  padding: 0 13px !important;
+}
+
+.parent-home .child-switcher:hover,
+.parent-home .btn-logout:hover {
+  border-color: #b8c7d4 !important;
+  color: var(--parent-primary) !important;
+}
+
+/* The shared stylesheet also contains a legacy dashboard grid. The home page
+   owns its own workflow grid so the task section stays in document flow. */
+.parent-home .main {
+  display: block !important;
+  width: min(1180px, calc(100% - 48px)) !important;
+  max-width: 1180px !important;
+  margin: 0 auto !important;
+  padding: 34px 0 64px !important;
+}
+
+.parent-home .main::before {
+  display: block !important;
+  margin: 0 0 14px !important;
+  color: var(--parent-sub) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+}
+
+.parent-home .page-title {
+  margin-bottom: 22px;
+  align-items: center;
+}
+
+.parent-home .page-title h1 {
+  margin: 0 !important;
+  color: var(--parent-ink) !important;
+  font-size: clamp(26px, 3vw, 32px) !important;
+  line-height: 1.2 !important;
+  font-weight: 720 !important;
+}
+
+.parent-home .page-title p {
+  max-width: 680px;
+  margin-top: 8px !important;
+  color: var(--parent-sub) !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+
+.parent-home .status-tag {
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border: 1px solid transparent;
+  font-size: 12px !important;
+}
+
+.parent-home .status-ongoing {
+  background: var(--parent-primary-soft) !important;
+  color: var(--parent-primary) !important;
+  border-color: #d8ebff;
+}
+
+.parent-home .status-submitted {
+  background: #fff7e8 !important;
+  color: var(--parent-warning-text) !important;
+  border-color: #f4dfb8;
+}
+
+.parent-home .status-done {
+  background: #eaf8f0 !important;
+  color: var(--parent-success) !important;
+  border-color: #cfeedd;
+}
+
+.parent-home .bind-bar {
+  margin-bottom: 20px !important;
+  padding: 14px 16px !important;
+  border: 1px solid var(--parent-warning-line) !important;
+  border-radius: var(--parent-radius-sm) !important;
+  background: var(--parent-warning-bg) !important;
+  color: var(--parent-warning-text) !important;
+}
+
+.parent-home .bind-bar button {
+  min-width: 86px;
+  background: var(--parent-ink) !important;
+  border-color: var(--parent-ink) !important;
+}
+
+.parent-home .task-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.68fr) minmax(320px, 0.82fr) !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+
+.parent-home .stack {
+  display: grid !important;
+  gap: 18px !important;
+  min-width: 0;
+}
+
+.parent-home .card {
+  min-width: 0;
+  padding: 26px !important;
+  border: 1px solid var(--parent-line-soft) !important;
+  border-radius: var(--parent-radius) !important;
+  background: var(--parent-surface) !important;
+  box-shadow: var(--parent-shadow) !important;
+}
+
+.parent-home #taskCard {
+  padding: 30px !important;
+  border-color: #cfe6f7 !important;
+  background: linear-gradient(145deg, #f4faff 0%, #f3fbfa 100%) !important;
+  box-shadow: 0 16px 36px rgba(38, 117, 155, 0.09) !important;
+}
+
+.parent-home #taskCard:hover,
+.parent-home #submitCard:hover,
+.parent-home #fitCard:hover,
+.parent-home #submittedCard:hover {
+  border-color: #cbdce8 !important;
+}
+
+.parent-home .task-type {
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  border: 1px solid #d6ebfb;
+  border-radius: 999px !important;
+  background: #eaf5ff !important;
+  color: #0a67af !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.parent-home .task-title {
+  max-width: 760px;
+  margin-top: 15px !important;
+  color: var(--parent-ink) !important;
+  font-size: clamp(26px, 3vw, 34px) !important;
+  line-height: 1.25 !important;
+  font-weight: 720 !important;
+}
+
+.parent-home .task-meta {
+  margin-top: 10px !important;
+  color: var(--parent-sub) !important;
+  font-size: 14px !important;
+}
+
+.parent-home .meta-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin-top: 24px !important;
+}
+
+.parent-home .meta-box {
+  min-width: 0;
+  padding: 14px !important;
+  border: 1px solid rgba(214, 229, 238, 0.9) !important;
+  border-radius: var(--parent-radius-sm) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.parent-home .meta-box .label,
+.parent-home .detail-label,
+.parent-home .submitted-box .label,
+.parent-home .feedback-box .label {
+  color: var(--parent-muted) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.parent-home .meta-box .value {
+  overflow-wrap: anywhere;
+  margin-top: 6px !important;
+  color: var(--parent-ink) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  font-weight: 650 !important;
+}
+
+.parent-home .detail-grid {
+  gap: 0 !important;
+  margin-top: 24px !important;
+}
+
+.parent-home .detail-block {
+  padding: 18px 0 !important;
+  border-top: 1px solid rgba(223, 231, 238, 0.9);
+}
+
+.parent-home .detail-block:first-child {
+  padding-top: 0 !important;
+  border-top: 0;
+}
+
+.parent-home .detail-block p,
+.parent-home .submitted-box .content,
+.parent-home .feedback-box .content {
+  margin-top: 8px !important;
+  color: var(--parent-sub) !important;
+  font-size: 14px !important;
+  line-height: 1.8 !important;
+}
+
+.parent-home .tip-box {
+  margin-top: 10px !important;
+  padding: 14px 16px !important;
+  border: 1px solid #d9eafa !important;
+  border-left: 3px solid var(--parent-primary) !important;
+  border-radius: var(--parent-radius-sm) !important;
+  background: #f6fbff !important;
+  color: #536d82 !important;
+  line-height: 1.75 !important;
+}
+
+.parent-home .panel-title,
+.parent-home .submit-card h2,
+.parent-home .submitted-card h2 {
+  color: var(--parent-ink) !important;
+  font-size: 20px !important;
+  line-height: 1.35 !important;
+  font-weight: 700 !important;
+}
+
+.parent-home .panel-sub {
+  margin-top: 7px !important;
+  color: var(--parent-sub) !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+}
+
+.parent-home #fitCard {
+  position: sticky;
+  top: 92px;
+}
+
+.parent-home .fit-options {
+  gap: 10px !important;
+  margin-top: 18px !important;
+}
+
+.parent-home .fit-option {
+  min-height: 72px !important;
+  padding: 13px 14px !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  border: 1px solid var(--parent-line-soft) !important;
+  border-radius: var(--parent-radius-sm) !important;
+  background: var(--parent-surface) !important;
+}
+
+.parent-home .fit-option strong {
+  flex: 0 0 42%;
+  color: var(--parent-ink) !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+
+.parent-home .fit-option span {
+  color: var(--parent-sub) !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+.parent-home .fit-option:hover {
+  border-color: #b8d7ee !important;
+  background: #fbfdff !important;
+}
+
+.parent-home .fit-option.active {
+  border-color: #7dbbe7 !important;
+  background: var(--parent-primary-soft) !important;
+  box-shadow: inset 3px 0 0 var(--parent-primary) !important;
+}
+
+.parent-home .fit-option.active strong {
+  color: #075f9f !important;
+}
+
+.parent-home .fit-message {
+  min-height: 20px !important;
+  margin-top: 14px !important;
+  color: var(--parent-success) !important;
+  font-size: 12px !important;
+}
+
+.parent-home .type-tabs {
+  display: flex !important;
+  gap: 4px !important;
+  margin: 18px 0 14px !important;
+  padding: 4px !important;
+  border: 1px solid var(--parent-line-soft) !important;
+  border-radius: 10px !important;
+  background: var(--parent-surface-soft) !important;
+}
+
+.parent-home .type-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 38px !important;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: var(--parent-sub) !important;
+  font-size: 13px !important;
+  white-space: nowrap;
+}
+
+.parent-home .type-tab:hover {
+  color: var(--parent-primary) !important;
+  background: #eef6fd !important;
+}
+
+.parent-home .type-tab.active {
+  background: var(--parent-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 10px rgba(8, 120, 209, 0.18) !important;
+}
+
+.parent-home textarea,
+.parent-home input,
+.parent-home select {
+  border-color: var(--parent-line) !important;
+  border-radius: var(--parent-radius-sm) !important;
+}
+
+.parent-home textarea {
+  min-height: 132px !important;
+  padding: 13px 14px !important;
+  background: #fcfdff !important;
+}
+
+.parent-home textarea::placeholder {
+  color: #a1adb9;
+}
+
+.parent-home textarea:focus,
+.parent-home input:focus,
+.parent-home select:focus {
+  border-color: var(--parent-primary) !important;
+  box-shadow: 0 0 0 4px rgba(8, 120, 209, 0.12) !important;
+}
+
+.parent-home .check-group {
+  gap: 8px !important;
+}
+
+.parent-home .check-group label {
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--parent-line-soft);
+  border-radius: var(--parent-radius-sm);
+  background: var(--parent-surface-soft);
+  color: var(--parent-sub);
+}
+
+.parent-home .check-group input {
+  accent-color: var(--parent-primary);
+}
+
+.parent-home .media-panel {
+  padding: 16px !important;
+  border-color: #c9e2f5 !important;
+  border-radius: var(--parent-radius-sm) !important;
+  background: #f7fbff !important;
+}
+
+.parent-home .media-item,
+.parent-home .attachment-file {
+  border-color: var(--parent-line-soft) !important;
+  border-radius: 8px !important;
+  background: var(--parent-surface) !important;
+}
+
+.parent-home .action-row {
+  gap: 10px !important;
+  margin-top: 18px !important;
+}
+
+.parent-home .action-row button {
+  min-height: 44px !important;
+}
+
+.parent-home .btn-primary,
+.parent-home .btn-confirm {
+  background: var(--parent-primary) !important;
+  border-color: var(--parent-primary) !important;
+  box-shadow: 0 7px 16px rgba(8, 120, 209, 0.18) !important;
+}
+
+.parent-home .btn-primary:hover,
+.parent-home .btn-confirm:hover {
+  background: var(--parent-primary-hover) !important;
+  border-color: var(--parent-primary-hover) !important;
+}
+
+.parent-home .btn-secondary,
+.parent-home .btn-cancel {
+  background: var(--parent-surface) !important;
+  border-color: var(--parent-line) !important;
+  color: var(--parent-ink) !important;
+}
+
+.parent-home .form-error {
+  color: #b42318 !important;
+}
+
+.parent-home .form-ok {
+  color: var(--parent-success) !important;
+}
+
+.parent-home .submitted-box {
+  background: #f1faf5 !important;
+  border-color: #ccebd8 !important;
+}
+
+.parent-home .feedback-box {
+  background: #fff8ed !important;
+  border-color: #f2d7ad !important;
+}
+
+.parent-home .tag {
+  border-color: var(--parent-line) !important;
+  background: #fff !important;
+}
+
+.parent-home .footer-note {
+  margin-top: 30px !important;
+  color: var(--parent-muted) !important;
+}
+
+.parent-home .modal-mask {
+  background: rgba(17, 35, 48, 0.44) !important;
+}
+
+.parent-home .modal {
+  border-radius: var(--parent-radius) !important;
+  box-shadow: 0 24px 70px rgba(17, 35, 48, 0.18) !important;
+}
+
+@media (max-width: 1023px) {
+  .parent-home .topbar {
+    gap: 12px !important;
+  }
+
+  .parent-home .parent-nav {
+    max-width: min(390px, 40vw);
+  }
+
+  .parent-home .task-layout {
+    grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.85fr) !important;
+    gap: 18px !important;
+  }
+
+  .parent-home .card,
+  .parent-home #taskCard {
+    padding: 22px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .parent-home .topbar {
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    padding: 12px 18px !important;
+  }
+
+  .parent-home .parent-nav {
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  .parent-home .task-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .parent-home #fitCard {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .parent-home .topbar {
+    padding: 11px 14px !important;
+    gap: 10px !important;
+  }
+
+  .parent-home .brand {
+    font-size: 15px !important;
+  }
+
+  .parent-home .user-area {
+    margin-left: auto !important;
+    gap: 7px !important;
+  }
+
+  .parent-home .child-switcher {
+    width: 138px;
+    max-width: 138px !important;
+    font-size: 13px !important;
+  }
+
+  .parent-home .user-name {
+    display: none !important;
+  }
+
+  .parent-home .btn-logout {
+    min-width: 72px;
+    padding: 0 9px !important;
+    font-size: 13px !important;
+  }
+
+  .parent-home .main {
+    width: min(100% - 28px, 560px) !important;
+    padding: 22px 0 44px !important;
+  }
+
+  .parent-home .page-title {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  .parent-home .page-title h1 {
+    font-size: 26px !important;
+  }
+
+  .parent-home .page-title p {
+    font-size: 13px !important;
+  }
+
+  .parent-home .page-title .status-tag {
+    margin-top: 12px;
+  }
+
+  .parent-home .card,
+  .parent-home #taskCard {
+    padding: 18px !important;
+    border-radius: 12px !important;
+  }
+
+  .parent-home .task-title {
+    font-size: 25px !important;
+  }
+
+  .parent-home .meta-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .parent-home .meta-box:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .parent-home .fit-option {
+    display: block !important;
+  }
+
+  .parent-home .fit-option strong,
+  .parent-home .fit-option span {
+    display: block;
+  }
+
+  .parent-home .fit-option span {
+    margin-top: 4px;
+  }
+
+  .parent-home .type-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .parent-home .type-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .parent-home .type-tab {
+    flex: 0 0 auto;
+    min-width: 82px;
+  }
+
+  .parent-home .action-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .parent-home .action-row .btn-primary {
+    order: -1;
+  }
+
+  .parent-home .bind-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .parent-home .bind-bar button {
+    width: 100%;
+  }
+}
+
+/* The shared stylesheet uses body:has(#childSwitcher) for an older dashboard.
+   Keep this final reset more specific so home.html remains a normal flow page. */
+body.parent-home:has(#childSwitcher) .main {
+  display: block !important;
+  width: min(1180px, calc(100% - 48px)) !important;
+  max-width: 1180px !important;
+  grid-template-columns: none !important;
+  grid-template-areas: none !important;
+  grid-auto-rows: auto !important;
+  gap: 0 !important;
+}
+
+body.parent-home:has(#childSwitcher) .main::before {
+  display: block !important;
+  grid-column: auto !important;
+  grid-area: auto !important;
+}
+
+body.parent-home:has(#childSwitcher) #taskCard,
+body.parent-home:has(#childSwitcher) #submitCard,
+body.parent-home:has(#childSwitcher) #submittedCard,
+body.parent-home:has(#childSwitcher) #fitCard {
+  grid-area: auto !important;
+  grid-row: auto !important;
+  grid-column: auto !important;
+}
+
+@media (max-width: 640px) {
+  body.parent-home:has(#childSwitcher) .main {
+    width: min(100% - 28px, 560px) !important;
+  }
+}
