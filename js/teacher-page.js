@@ -674,6 +674,7 @@
 
   function renderReport(report, options) {
     options = options || {};
+    var isAiPage = document.body.classList.contains("teacher-ai-page");
     var ai = report.ai || {};
     var stats = report.stats || {};
     var scope = report.dataScope || {};
@@ -699,23 +700,22 @@
       scopeNotice = '<div class="warn-note data-scope-note"><b>当前没有真实家长数据</b>：线上数据库目前只有演示账号产生的学生记录，' +
         '这些记录已按规则排除。请先让家长使用真实账号注册，并绑定孩子或提交问卷；数据会在真实操作后出现在这里。</div>';
     }
-    var corePanel = scopeNotice + createAssistantShell(report, options.aiLoading === true) + statHtml + notices;
+    var assistantPanel = scopeNotice + createAssistantShell(report, options.aiLoading === true);
     var dataPanel = scopeNotice + statHtml;
+    var aiPanel = assistantPanel + notices;
     if ((scope.realStudents || 0) === 0) {
-      corePanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看 AI 分析。</p>';
       dataPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看数据档案。</p>';
+      aiPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看 AI 分析。</p>';
     } else {
-      corePanel += renderAiActionHub(ai, report);
       dataPanel += notices + renderDataBoard(dims);
+      aiPanel += renderAiActionHub(ai, report);
       if (ai.risks && ai.risks.length) {
-        corePanel += '<div class="warn-note"><b>谨慎解读：</b>' + esc(ai.risks.join("；")) + '</div>';
+        aiPanel += '<div class="warn-note"><b>谨慎解读：</b>' + esc(ai.risks.join("；")) + '</div>';
       }
     }
-    var html = '<section class="dashboard-tabs"><div class="main-tab-list" role="tablist">' +
-      '<button type="button" class="main-tab active" data-main-tab="core">AI 核心洞察与行动建议</button>' +
-      '<button type="button" class="main-tab" data-main-tab="data">详细学情与数据档案</button>' +
-      '</div><div class="main-tab-panel active" data-main-panel="core">' + corePanel +
-      '</div><div class="main-tab-panel" data-main-panel="data">' + dataPanel + '</div></section>';
+    var html = isAiPage
+      ? '<section class="dashboard-page ai-insight-page">' + aiPanel + '</section>'
+      : '<section class="dashboard-page data-archive-page">' + dataPanel + '</section>';
     document.getElementById("reportBody").innerHTML = html;
     if (options.restoreMessages) {
       // 问候语始终按最新逻辑与最新数据重新生成，历史对话恢复时跳过缓存的旧问候语

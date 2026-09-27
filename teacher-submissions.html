@@ -72,7 +72,7 @@
  .top-actions { margin-left: auto; }
  }
  </style><link rel="stylesheet" href="css/refined-ui.css">
-</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link" href="teacher-publish.html">发布任务</a><a class="nav-link active" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="count" id="subCount"></span><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><div id="subList"><p class="empty">正在加载…</p></div></main><script src="js/api.js"></script><script>
+</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-ai.html">AI 洞察</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link" href="teacher-publish.html">发布任务</a><a class="nav-link active" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="count" id="subCount"></span><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><div id="subList"><p class="empty">正在加载…</p></div></main><script src="js/api.js"></script><script>
  (function () {
  "use strict";
  requireAuth();
@@ -94,6 +94,17 @@
  "建议下周试试同类型的进阶任务。"
  ];
  var QUICK_TAGS = ["表达力", "观察力", "坚持", "合作", "责任感", "情绪表达"];
+ function formatDateTime(value) {
+ var text = String(value || "").trim();
+ if (!text) return "-";
+ var date = new Date(text);
+ if (!isNaN(date.getTime())) {
+ var pad = function (n) { return String(n).padStart(2, "0"); };
+ return date.getFullYear() + "." + pad(date.getMonth() + 1) + "." + pad(date.getDate()) + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+ }
+ var match = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[ T](\d{1,2}):(\d{2})/);
+ return match ? match[1] + "." + String(match[2]).padStart(2, "0") + "." + String(match[3]).padStart(2, "0") + " " + String(match[4]).padStart(2, "0") + ":" + match[5] : text;
+ }
 
  function renderAttachments(value) {
  var attachments = [];
@@ -128,7 +139,7 @@
  var h = '<div class="sub-item">';
  h += '<div class="sub-head"><div><p class="sub-child">' + esc(s.child_name) +
  (s.grade ? " · " + esc(s.grade) : "") + '</p>';
- h += '<p class="sub-task">' + esc(s.title) + " · " + esc(s.created_at) + '</p></div>';
+ h += '<p class="sub-task">' + esc(s.title) + " · " + formatDateTime(s.created_at) + '</p></div>';
  h += s.feedback_count > 0
  ? '<span class="badge-done">已点评</span>'
  : '<span class="badge-wait">待点评</span>';
