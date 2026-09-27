@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>班级概览 · 家校共育</title><style>
  * { margin: 0; padding: 0; box-sizing: border-box; }
  :root {
- --primary: #3b82f6; --text: #1f2937; --text-sub: #6b7280; --border: #e5e7eb;
+ --primary: #2563eb; --text: #303133; --text-sub: #606266; --border: #e5e7eb;
  --success: #16a34a; --ai-accent: #8b5cf6; --ai-bg: #f5f3ff;
  --warn-text: #92400e; --danger: #dc2626;
  }
@@ -36,7 +36,7 @@
  }
  body.teacher-overview .main::before { display: none !important; }
  .overview-shell { width: 100%; }
- .overview-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+ .overview-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
  .primary-col, .insight-col { display: grid; gap: 16px; min-width: 0; }
  .insight-col { position: sticky; top: 92px; }
  .panel {
@@ -46,6 +46,7 @@
  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
  .panel-title { font-size: 15px; font-weight: 700; }
  .panel-meta { color: var(--text-sub); font-size: 12px; }
+ .panel-link { color: var(--primary); font-weight: 700; text-decoration: none; }
  .section-hint { font-size: 13px; color: var(--text-sub); margin-bottom: 14px; line-height: 1.7; }
  body.teacher-overview .stats-row { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 12px !important; }
  .stat-box {
@@ -79,27 +80,44 @@
  }
  .personal-row .pt-name { font-weight: 700; color: #4f46e5; }
  .insights-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
- .insights-list { list-style: none; }
- .insights-list li {
- display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start;
- font-size: 13px; color: var(--text-sub); line-height: 1.6; padding: 10px 0; border-top: 1px solid #eef2f7;
- }
- .insights-list li:first-child { border-top: none; padding-top: 0; }
+ .insights-list { display: grid; gap: 10px; list-style: none; }
+ .insights-list li { display: block; color: var(--text-sub); line-height: 1.6; }
  .insights-list li::before { display: none; }
+ .insight-card { padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fcfdff; }
+ .insight-card-main { display: grid; gap: 6px; }
  .insight-label {
  border-radius: 6px; background: #f5f3ff; color: #6d28d9;
  font-size: 12px; font-weight: 700; padding: 2px 6px; white-space: nowrap;
  }
- .insight-action { color: var(--text); font-weight: 600; }
+ .insight-action { color: var(--text); font-size: 13px; font-weight: 600; }
+ .insight-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+ .action-btn {
+ min-height: 40px; border: 1px solid #d6e3f7; border-radius: 8px; background: #fff; color: #1d4ed8;
+ font-size: 13px; font-weight: 700; cursor: pointer;
+ }
+ .action-btn.primary-action { background: var(--primary); color: #fff; border-color: var(--primary); }
  .attention-section { margin-top: 0; }
  .attention-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
- .attention-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
- .attention-tag {
- display: flex; justify-content: space-between; align-items: center; gap: 8px;
- font-size: 13px; padding: 9px 10px; border-radius: 8px;
- background: #fff; color: var(--danger); border: 1px solid #fecaca;
- }
- .attention-tag .tag-sub { color: #9ca3af; font-size: 12px; }
+ .attention-list { display: grid; gap: 10px; }
+ .attention-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+ .bulk-action { min-height: 40px; padding: 0 14px; border: 1px solid var(--primary); border-radius: 8px; background: var(--primary); color: #fff; font-weight: 700; cursor: pointer; }
+ .bulk-action.secondary { background: #fff; color: var(--primary); }
+ .unsubmitted-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+ .unsubmitted-table { width: 100%; min-width: 680px; border-collapse: collapse; background: #fff; }
+ .unsubmitted-table th, .unsubmitted-table td { padding: 11px 12px; border-bottom: 1px solid #edf0f4; text-align: left; color: var(--text); font-size: 13px; }
+ .unsubmitted-table th { background: #f8fafc; color: #4b5563; font-size: 12px; font-weight: 700; }
+ .unsubmitted-table tr:last-child td { border-bottom: 0; }
+ .sort-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; border: 0; background: transparent; color: #4b5563; font-size: 12px; font-weight: 700; cursor: pointer; }
+ .row-check, .select-all { width: 18px; height: 18px; accent-color: var(--primary); }
+ .student-cell { font-weight: 700; color: #172033; }
+ .status-pill { display: inline-flex; min-height: 26px; align-items: center; padding: 0 9px; border-radius: 999px; background: #fff7ed; color: #9a3412; font-size: 12px; font-weight: 700; }
+ .table-actions { display: flex; gap: 8px; }
+ .icon-action { min-width: 44px; min-height: 44px; border: 1px solid #d7dee8; border-radius: 10px; background: #fff; color: var(--primary); font-size: 18px; line-height: 1; cursor: pointer; }
+ .mobile-card-list { display: none; gap: 10px; }
+ .student-remind-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
+ .student-remind-card strong { display: block; color: #172033; font-size: 15px; }
+ .student-remind-card span { display: block; margin-top: 3px; color: var(--text-sub); font-size: 12px; }
+ .mobile-card-actions { display: flex; gap: 8px; }
  .dist-section { margin-top: 18px; }
  .dist-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
  .dist-panel { min-width: 0; }
@@ -108,6 +126,11 @@
  .dist-segment { display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; min-width: 0; }
  .dist-legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-sub); }
  .dist-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+ .dist-progress-list { display: none; gap: 9px; margin-top: 8px; }
+ .dist-progress-row { display: grid; grid-template-columns: minmax(88px, auto) minmax(0, 1fr) auto; gap: 10px; align-items: center; color: var(--text); font-size: 13px; }
+ .dist-progress-track { height: 8px; overflow: hidden; border-radius: 999px; background: #e8eaee; }
+ .dist-progress-fill { height: 100%; border-radius: 999px; }
+ .dist-count { color: var(--text-sub); font-weight: 700; white-space: nowrap; }
  .engagement-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 12px 0; }
  .engagement-box {
  background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;
@@ -126,7 +149,8 @@
  .parent-evidence { margin-top: 6px; font-size: 12px; color: var(--text-sub); line-height: 1.6; }
  .parent-action { margin-top: 6px; font-size: 12px; color: var(--warn-text); line-height: 1.6; }
  .badge-wait { font-size: 12px; color: #a16207; background: #fef9c3; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
- .empty { text-align: center; padding: 32px 0; color: #9ca3af; font-size: 14px; }
+ .empty { text-align: center; padding: 32px 0; color: #606266; font-size: 14px; }
+ .mobile-insight-tabs, .mobile-drawer-head, .mobile-reminder-bar, .mobile-insight-backdrop, .toast { display: none; }
  @media (max-width: 700px) {
  .topbar { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
  .teacher-nav { order: 3; width: 100%; flex-basis: 100%; }
@@ -136,12 +160,40 @@
  .overview-layout { grid-template-columns: 1fr; }
  .insight-col { position: static; }
  }
- @media (max-width: 680px) {
- body.teacher-overview .main { width: min(100% - 28px, 1320px) !important; }
- .stats-row, .dist-grid, .attention-list { grid-template-columns: 1fr; }
- body.teacher-overview .stats-row, .dist-grid, .attention-list { grid-template-columns: 1fr !important; }
+ @media (max-width: 760px) {
+ body.teacher-overview { padding-bottom: 78px; }
+ body.teacher-overview .main { width: min(100% - 28px, 1320px) !important; padding-bottom: 96px !important; }
+ body.teacher-overview .panel { padding: 16px !important; border-radius: 12px !important; }
+ body.teacher-overview .stats-row { display: flex !important; grid-template-columns: none !important; gap: 10px !important; overflow-x: auto; padding: 0 2px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+ body.teacher-overview .stats-row::-webkit-scrollbar { display: none; }
+ body.teacher-overview .stat-box { flex: 0 0 152px; min-height: 104px; padding: 14px !important; scroll-snap-align: start; }
+ body.teacher-overview .stat-box .stat-val { font-size: 26px !important; }
+ .dist-grid, .attention-list { grid-template-columns: 1fr; }
+ body.teacher-overview .dist-grid, body.teacher-overview .attention-list { grid-template-columns: 1fr !important; }
  .engagement-grid { grid-template-columns: repeat(2, 1fr); }
  .personal-row { grid-template-columns: 1fr; gap: 2px; }
+ .mobile-insight-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+ .mobile-insight-tab { min-height: 44px; border: 1px solid #d7dee8; border-radius: 10px; background: #fff; color: var(--text); font-weight: 700; cursor: pointer; }
+ .insight-col { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: block; max-height: 78vh; padding: 14px; overflow-y: auto; background: #f5f6f7; border-radius: 18px 18px 0 0; box-shadow: 0 -18px 45px rgba(15,23,42,0.18); visibility: hidden; pointer-events: none; transform: translateY(105%); transition: transform 0.22s ease, visibility 0.22s ease; }
+ body.insight-drawer-open .insight-col { visibility: visible; pointer-events: auto; transform: translateY(0); }
+ .mobile-insight-backdrop { display: none; position: fixed; inset: 0; z-index: 45; background: rgba(15,23,42,0.32); }
+ body.insight-drawer-open .mobile-insight-backdrop { display: block; }
+ .mobile-drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+ .mobile-drawer-title { color: #172033; font-size: 15px; font-weight: 700; }
+ .drawer-close { min-width: 44px; min-height: 44px; border: 1px solid #d7dee8; border-radius: 10px; background: #fff; color: #303133; font-size: 20px; cursor: pointer; }
+ .insight-col[data-active-panel="insights"] [data-panel="parents"], .insight-col[data-active-panel="parents"] [data-panel="insights"] { display: none; }
+ .insight-col .panel + .panel { margin-top: 12px; }
+ .unsubmitted-table-wrap, .attention-toolbar { display: none; }
+ .mobile-card-list { display: grid; }
+ .student-remind-card, .icon-action, .mobile-insight-tab, .action-btn, .drawer-close { min-height: 44px; }
+ .dist-bar, .dist-legend { display: none; }
+ .dist-progress-list { display: grid; margin-top: 0; }
+ .dist-progress-row { grid-template-columns: minmax(92px, auto) minmax(0, 1fr) auto; }
+ .mobile-reminder-bar { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 42; grid-template-columns: 1fr; }
+ .mobile-reminder-bar.is-visible { display: grid; }
+ .mobile-reminder-btn { min-height: 52px; border: 0; border-radius: 14px; background: #111827; color: #fff; font-size: 15px; font-weight: 800; box-shadow: 0 12px 30px rgba(17,24,39,0.22); cursor: pointer; }
+ .toast { position: fixed; left: 16px; right: 16px; bottom: 78px; z-index: 70; padding: 12px 14px; border-radius: 12px; background: #172033; color: #fff; text-align: center; font-size: 14px; }
+ .toast.is-visible { display: block; }
  }
  </style><link rel="stylesheet" href="css/refined-ui.css">
 </head><body class="teacher-overview"><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-ai.html">AI 洞察</a><a class="nav-link active" href="teacher-class-overview.html">班级概览</a><a class="nav-link" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><div class="overview-shell" id="overviewCard"><div id="overviewBody"><p class="empty">正在加载班级数据…</p></div></div></main><script src="js/api.js"></script><script>
@@ -170,12 +222,20 @@
  entries.forEach(function (e, i) {
  var pct = Math.round(e[1] / total * 100);
  var color = COLORS[i % COLORS.length];
- html += '<div class="dist-segment" style="width:' + pct + '%;background:' + color + '" title="' + esc(e[0]) + ': ' + e[1] + '">' + (pct >= 12 ? esc(e[0]) : "") + '</div>';
+ html += '<div class="dist-segment" style="width:' + pct + '%;background:' + color + '" title="' + esc(e[0]) + ': ' + e[1] + '">' + (pct >= 16 && String(e[0]).length <= 4 ? esc(e[0]) : "") + '</div>';
  });
  html += '</div><div class="dist-legend">';
  entries.forEach(function (e, i) {
  var color = COLORS[i % COLORS.length];
  html += '<span><span class="dot" style="background:' + color + '"></span>' + esc(e[0]) + ' (' + e[1] + ')</span>';
+ });
+ html += '</div><div class="dist-progress-list">';
+ entries.forEach(function (e, i) {
+ var pct = Math.round(e[1] / total * 100);
+ var color = COLORS[i % COLORS.length];
+ html += '<div class="dist-progress-row"><span>' + esc(e[0]) + '</span>' +
+ '<div class="dist-progress-track" aria-hidden="true"><div class="dist-progress-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+ '<span class="dist-count">' + e[1] + '人</span></div>';
  });
  html += '</div></div>';
  return html;
@@ -217,6 +277,143 @@
  return { label: "观察", action: text };
  }
 
+ function getInsightTiming(action) {
+ if (action.indexOf("周三") >= 0 || action.indexOf("提醒") >= 0 || action.indexOf("催交") >= 0) return "定时周三发";
+ if (action.indexOf("反馈") >= 0 || action.indexOf("点评") >= 0) return "安排点评";
+ if (action.indexOf("下周") >= 0 || action.indexOf("主题") >= 0) return "加入下周任务";
+ return "稍后跟进";
+ }
+
+ function renderInsightCard(compact, index) {
+ var timing = getInsightTiming(compact.action);
+ return '<li class="insight-card"><div class="insight-card-main"><span class="insight-label">' + esc(compact.label) +
+ '</span><span class="insight-action">' + esc(compact.action) + '</span></div>' +
+ '<div class="insight-actions"><button type="button" class="action-btn primary-action" data-insight-action="send" data-index="' + index + '">立即发送</button>' +
+ '<button type="button" class="action-btn" data-insight-action="schedule" data-index="' + index + '">' + esc(timing) + '</button></div></li>';
+ }
+
+ function renderUnsubmittedTable(list) {
+ var html = '<div class="attention-toolbar"><button type="button" class="bulk-action" data-remind="selected">批量催交</button>' +
+ '<button type="button" class="bulk-action secondary" data-remind="all">提醒全部未交（' + list.length + '人）</button></div>';
+ html += '<div class="unsubmitted-table-wrap"><table class="unsubmitted-table"><thead><tr>' +
+ '<th><input class="select-all" type="checkbox" aria-label="全选未提交学生"></th>' +
+ '<th><button type="button" class="sort-btn" data-sort="name">学生</button></th>' +
+ '<th><button type="button" class="sort-btn" data-sort="grade">年级</button></th>' +
+ '<th><button type="button" class="sort-btn" data-sort="caregiver">主要陪伴人</button></th>' +
+ '<th><button type="button" class="sort-btn" data-sort="status">状态</button></th><th>快捷操作</th></tr></thead>' +
+ '<tbody id="unsubmittedTableBody">' + renderUnsubmittedRows(list, "name", 1) + '</tbody></table></div>';
+ html += '<div class="mobile-card-list">';
+ list.forEach(function (u) {
+ html += '<article class="student-remind-card"><div><strong>' + esc(u.name) + '</strong><span>' +
+ esc(u.caregiver || "未填写陪伴人") + ' · 未提交</span></div><div class="mobile-card-actions">' +
+ '<button type="button" class="icon-action" data-remind="one" data-name="' + esc(u.name) + '" aria-label="微信提醒' + esc(u.name) + '">微</button>' +
+ '<button type="button" class="icon-action" data-remind="call" data-name="' + esc(u.name) + '" aria-label="电话提醒' + esc(u.name) + '">☎</button></div></article>';
+ });
+ html += '</div>';
+ return html;
+ }
+
+ function renderUnsubmittedRows(list, sortKey, dir) {
+ var sorted = list.slice().sort(function (a, b) {
+ var av = sortKey === "status" ? "未提交" : String(a[sortKey] || "");
+ var bv = sortKey === "status" ? "未提交" : String(b[sortKey] || "");
+ return av.localeCompare(bv, "zh-Hans-CN") * dir;
+ });
+ return sorted.map(function (u) {
+ return '<tr><td><input class="row-check" type="checkbox" value="' + esc(u.id) + '" data-name="' + esc(u.name) + '" aria-label="选择' + esc(u.name) + '"></td>' +
+ '<td class="student-cell">' + esc(u.name) + '</td><td>' + esc(u.grade || "未填写") + '</td><td>' +
+ esc(u.caregiver || "未填写") + '</td><td><span class="status-pill">未提交</span></td>' +
+ '<td><div class="table-actions"><button type="button" class="icon-action" data-remind="one" data-name="' + esc(u.name) + '" aria-label="微信提醒' + esc(u.name) + '">微</button>' +
+ '<button type="button" class="icon-action" data-remind="call" data-name="' + esc(u.name) + '" aria-label="电话提醒' + esc(u.name) + '">☎</button></div></td></tr>';
+ }).join("");
+ }
+
+ function showToast(message) {
+ var toast = document.getElementById("overviewToast");
+ if (!toast) return;
+ toast.textContent = message;
+ toast.classList.add("is-visible");
+ clearTimeout(showToast.timer);
+ showToast.timer = setTimeout(function () { toast.classList.remove("is-visible"); }, 2200);
+ }
+
+ function setupOverviewInteractions(data) {
+ var bodyEl = document.body;
+ var drawer = document.querySelector(".insight-col");
+ var backdrop = document.querySelector(".mobile-insight-backdrop");
+ var drawerTitle = document.querySelector(".mobile-drawer-title");
+ var unsubmitted = data.unsubmittedStudents || [];
+ var sortState = { key: "name", dir: 1 };
+
+ function openDrawer(panel) {
+ if (!drawer) return;
+ drawer.setAttribute("data-active-panel", panel);
+ if (drawerTitle) drawerTitle.textContent = panel === "parents" ? "家长证据" : "学情洞察与建议";
+ bodyEl.classList.add("insight-drawer-open");
+ }
+ function closeDrawer() { bodyEl.classList.remove("insight-drawer-open"); }
+ document.querySelectorAll("[data-mobile-panel]").forEach(function (btn) {
+ btn.addEventListener("click", function () { openDrawer(btn.getAttribute("data-mobile-panel")); });
+ });
+ document.querySelectorAll("[data-close-drawer]").forEach(function (btn) { btn.addEventListener("click", closeDrawer); });
+ if (backdrop) backdrop.addEventListener("click", closeDrawer);
+
+ document.querySelectorAll("[data-insight-action]").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ var type = btn.getAttribute("data-insight-action");
+ var label = type === "schedule" ? btn.textContent : "立即发送";
+ showToast(label + "已生成，可在班级群模板中确认");
+ if (typeof trackEvent === "function") trackEvent("teacher_contact_started", { meta: { source: "class_overview_insight", action: label } });
+ });
+ });
+
+ function selectedNames() {
+ return Array.prototype.slice.call(document.querySelectorAll(".row-check:checked")).map(function (el) { return el.getAttribute("data-name"); });
+ }
+ function sendReminder(kind, names) {
+ var count = names && names.length ? names.length : unsubmitted.length;
+ var text = kind === "call" ? "电话提醒入口已准备" : "提醒模板已生成";
+ showToast(text + "：" + count + "人");
+ if (typeof trackEvent === "function") trackEvent("teacher_contact_started", { meta: { source: "class_overview_unsubmitted", kind: kind, count: count } });
+ }
+ document.querySelectorAll("[data-remind]").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ var kind = btn.getAttribute("data-remind");
+ if (kind === "selected") {
+ var names = selectedNames();
+ if (!names.length) { showToast("请先勾选需要催交的学生"); return; }
+ sendReminder("selected", names);
+ return;
+ }
+ if (kind === "one" || kind === "call") sendReminder(kind, [btn.getAttribute("data-name")]);
+ else sendReminder("all", unsubmitted.map(function (u) { return u.name; }));
+ });
+ });
+ var selectAll = document.querySelector(".select-all");
+ if (selectAll) selectAll.addEventListener("change", function () {
+ document.querySelectorAll(".row-check").forEach(function (el) { el.checked = selectAll.checked; });
+ });
+ document.querySelectorAll(".sort-btn").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ var key = btn.getAttribute("data-sort");
+ sortState.dir = sortState.key === key ? sortState.dir * -1 : 1;
+ sortState.key = key;
+ var tbody = document.getElementById("unsubmittedTableBody");
+ if (tbody) tbody.innerHTML = renderUnsubmittedRows(unsubmitted, sortState.key, sortState.dir);
+ if (selectAll) selectAll.checked = false;
+ setupOverviewInteractions.boundRows && setupOverviewInteractions.boundRows();
+ });
+ });
+ setupOverviewInteractions.boundRows = function () {
+ document.querySelectorAll("#unsubmittedTableBody [data-remind]").forEach(function (btn) {
+ btn.addEventListener("click", function () {
+ var kind = btn.getAttribute("data-remind");
+ sendReminder(kind, [btn.getAttribute("data-name")]);
+ });
+ });
+ };
+ }
+
  api("/api/teacher/ai-overview").then(function (data) {
  var s = data.stats || {};
  var body = document.getElementById("overviewBody");
@@ -245,7 +442,9 @@
  '</div><div class="stat-label">待点评</div></div>';
  left += '</div>';
 
- left += '<section class="panel"><div class="panel-head"><div class="panel-title">当前任务与个性化名单</div><a class="panel-meta" href="teacher-publish.html">调整班级任务</a></div>';
+ left += '<div class="mobile-insight-tabs"><button type="button" class="mobile-insight-tab" data-mobile-panel="insights">学情洞察</button><button type="button" class="mobile-insight-tab" data-mobile-panel="parents">家长证据</button></div>';
+
+ left += '<section class="panel"><div class="panel-head"><div class="panel-title">当前任务与个性化名单</div><a class="panel-meta panel-link" href="teacher-publish.html">调整班级任务</a></div>';
  left += '<div class="task-card">';
  if (data.task) {
  left += '<div class="task-main"><span class="task-type">' + esc(data.task.task_type || "班级任务") + '</span><div>' +
@@ -278,12 +477,7 @@
  var unsubmitted = data.unsubmittedStudents || [];
  left += '<section class="panel attention-section"><div class="panel-head"><div class="panel-title">本周尚未提交的学生</div><span class="panel-meta">' + unsubmitted.length + ' 人</span></div>';
  if (unsubmitted.length > 0) {
- left += '<div class="attention-list">';
- unsubmitted.forEach(function (u) {
- left += '<div class="attention-tag"><span>' + esc(u.name) + '</span>' +
- (u.caregiver ? '<span class="tag-sub">' + esc(u.caregiver) + '</span>' : '<span class="tag-sub">未填写</span>') + '</div>';
- });
- left += '</div>';
+ left += renderUnsubmittedTable(unsubmitted);
  } else {
  left += '<p class="empty">本周全部学生已提交</p>';
  }
@@ -301,14 +495,14 @@
  }
  left += '</div>';
 
- var right = '<aside class="insight-col">';
+ var right = '<div class="mobile-insight-backdrop" data-close-drawer></div><aside class="insight-col" data-active-panel="insights"><div class="mobile-drawer-head"><span class="mobile-drawer-title">学情洞察与建议</span><button type="button" class="drawer-close" data-close-drawer aria-label="关闭面板">×</button></div>';
  var insights = data.insights || [];
- right += '<section class="panel"><div class="insights-title">学情洞察与建议</div>';
+ right += '<section class="panel" data-panel="insights"><div class="insights-title">学情洞察与建议</div>';
  if (insights.length > 0) {
  right += '<ul class="insights-list">';
- insights.slice(0, 5).forEach(function (ins) {
+ insights.slice(0, 5).forEach(function (ins, index) {
  var compact = compactInsight(ins, data);
- right += '<li><span class="insight-label">' + esc(compact.label) + '</span><span><span class="insight-action">' + esc(compact.action) + '</span></span></li>';
+ right += renderInsightCard(compact, index);
  });
  right += '</ul>';
  } else {
@@ -319,7 +513,7 @@
  var es = data.engagementSummary || {};
  var rows = data.engagementRows || [];
  if (rows.length > 0) {
- right += '<section class="panel"><div class="panel-head"><div class="panel-title">家长主动关注证据</div><span class="panel-meta">近30天</span></div>';
+ right += '<section class="panel" data-panel="parents"><div class="panel-head"><div class="panel-title">家长主动关注证据</div><span class="panel-meta">近30天</span></div>';
  right += '<p class="section-hint">仅展示站内行为证据，不作为家长关心程度的绝对评价。</p>';
  right += '<div class="engagement-grid">';
  right += '<div class="engagement-box"><div class="num ok">' + (es.high || 0) + '</div><div class="label">证据较高</div></div>';
@@ -343,7 +537,10 @@
  }
  right += '</aside>';
 
- body.innerHTML = '<div class="overview-layout">' + left + right + '</div>';
+ body.innerHTML = '<div class="overview-layout">' + left + right + '</div>' +
+ '<div class="mobile-reminder-bar ' + (unsubmitted.length > 0 ? 'is-visible' : '') + '"><button type="button" class="mobile-reminder-btn" data-remind="all">一键提醒全部未交（' + unsubmitted.length + '人）</button></div>' +
+ '<div class="toast" id="overviewToast" role="status" aria-live="polite"></div>';
+ setupOverviewInteractions(data);
  }).catch(function () {
  document.getElementById("overviewBody").innerHTML =
  '<p class="empty">数据加载失败，请刷新重试</p>';
