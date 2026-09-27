@@ -1202,7 +1202,7 @@ async function seed() {
   var extraChildIds = {};
   for (const es of extraStudents) {
     var exist = await db.prepare("SELECT id FROM children WHERE name = ?").get(es.name);
-    if (exist) { extraChildIds[es.name] = exist.id; return; }
+    if (exist) { extraChildIds[es.name] = exist.id; continue; }
     var cid = await db.prepare(
       "INSERT INTO children (name, grade, gender, age, caregiver, interests, family_note) VALUES (?,?,?,?,?,?,?)"
     ).run(es.name, es.grade, es.gender, es.age, es.caregiver, es.interests, es.familyNote).lastInsertRowid;
@@ -1328,15 +1328,20 @@ async function handleApi(req, res, pathname, query) {
   if (req.method === "GET" && pathname === "/api/home") {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可访问家庭首页" });
     const children = await db.prepare(
-      "SELECT c.* FROM children c JOIN bindings b ON b.child_id = c.id WHERE b.user_id = ? ORDER BY c.id"
-    ).all(user.id);
-    const childId = query.get("childId") ? Number(query.get("childId")) : (children[0] && children[0].id);
-    const child = children.find((c) => c.id === childId) || null;
-    if (query.get("childId") && !child) return sendJson(res, 403, { message: "无权访问该孩子信息" });
+      "SELECT DISTINCT c.* FROM children c " +
+      "WHERE EXISTS (SELECT 1 FROM bindings b WHERE b.child_id = c.id AND b.user_id = ?) " +
+      "OR EXISTS (SELECT 1 FROM questionnaires q WHERE q.child_id = c.id AND q.user_id = ?) " +
+      "ORDER BY c.id"
+    ).all(user.id, user.id);
+    const requestedChildId = query.get("childId") ? Number(query.get("childId")) : null;
+    let child = requestedChildId ? children.find((c) => c.id === requestedChildId) : null;
+    const selectedChildInvalid = !!(requestedChildId && !child);
+    if (!child) child = children[0] || null;
 
     const result = { children, child, task: null, taskStatus: "none", submission: null,
                      feedback: null, unreadCount: 0, timeline: { taskCount: 0, workCount: 0 }, parentTaskRequest: null,
-                     needQuestionnaire: false, engagement: null, engagementEnabled: true };
+                     needQuestionnaire: false, engagement: null, engagementEnabled: true,
+                     selectedChildInvalid: selectedChildInvalid };
     if (!child) {
       // 首次登录的家长（无孩子且未填问卷）→ 前端跳转问卷页
       const qFilled = await db.prepare("SELECT id FROM questionnaires WHERE user_id = ?").get(user.id);

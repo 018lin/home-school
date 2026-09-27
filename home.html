@@ -288,6 +288,11 @@
  window.location.href = "questionnaire.html";
  return;
  }
+ if (data.child && data.child.id) {
+ setSelectedChildId(data.child.id);
+ } else if (data.selectedChildInvalid) {
+ localStorage.removeItem("selectedChildId");
+ }
  render(data);
  }).catch(function (e) {
  console.error(e);
