@@ -416,6 +416,55 @@
     return text;
   }
 
+  function getBriefingMetrics(report) {
+    var stats = report.stats || {};
+    var difficulty = 0;
+    var behaviorEvents = 0;
+    (report.dimensions || []).forEach(function (dim) {
+      if (dim.key === "textMaterials" && dim.indicators) difficulty = dim.indicators.difficulty || 0;
+      if (dim.key === "behaviorSignals" && dim.indicators) behaviorEvents = dim.indicators.events || 0;
+    });
+    return [
+      { label: "重点跟进", value: difficulty ? difficulty + "条困难线索" : "暂无困难线索", tone: difficulty ? "warn" : "calm" },
+      { label: "活跃期", value: stats.peakCompletionTime || "暂无", tone: "accent" },
+      { label: "待点评", value: (stats.weekPendingFeedback || 0) + "份", tone: stats.weekPendingFeedback ? "warn" : "calm" },
+      { label: "行为记录", value: behaviorEvents + "次", tone: behaviorEvents ? "accent" : "muted" }
+    ];
+  }
+
+  function renderFollowupChips() {
+    return '<div class="assistant-followups" aria-label="建议追问">' +
+      '<button type="button" data-question="哪些提交最需要我优先点评？">优先点评</button>' +
+      '<button type="button" data-question="本周任务负担是否可能偏重？">任务负担</button>' +
+      '<button type="button" data-question="家长通常在什么时间提交任务？">提交时段</button>' +
+      '<button type="button" data-question="请给我一份下周任务调整建议。">下周建议</button>' +
+      '</div>';
+  }
+
+  function renderBriefingBubble(report) {
+    var stats = report.stats || {};
+    var submitted = stats.weekSubmittedStudents || 0;
+    var pending = stats.weekPendingFeedback || 0;
+    var title = pending > 0 ? "今天先处理未点评提交" : "今天可以把重点放在任务优化";
+    var metrics = getBriefingMetrics(report).map(function (item) {
+      return '<span class="briefing-metric ' + item.tone + '"><span>' + esc(item.label) +
+        '</span><b>' + esc(item.value) + '</b></span>';
+    }).join("");
+    var body = '本周已有' + submitted + '位学生与家长完成任务，' +
+      (pending > 0 ? '还有' + pending + '份提交等待点评。' : '本周提交目前已全部点评。') +
+      '提交高峰为' + (stats.peakCompletionTime || '暂无') + '，可以据此安排提醒节奏。';
+    var behavior = "";
+    (report.dimensions || []).forEach(function (dim) {
+      if (dim.key === "behaviorSignals") behavior = buildBehaviorAnalysis(dim);
+    });
+    return '<div class="briefing-card"><div class="briefing-kicker">每日学情晨报</div>' +
+      '<div class="briefing-title">' + esc(title) + '</div>' +
+      '<p>' + esc(body) + '</p><div class="briefing-metrics">' + metrics + '</div>' +
+      (behavior ? '<p class="briefing-secondary">' + esc(behavior) + '</p>' : '') +
+      (report.ai && report.ai.summary ? '<p class="briefing-secondary">' + esc(report.ai.summary) + '</p>' : '') +
+      renderFollowupChips() + '</div>';
+  }
+
   function createAssistantShell(report, aiLoading) {
     var source = report.source || "本地规则分析";
     var loadingText = report.aiLoadingText || (report.aiStale ? "正在更新为最新班级数据" : "正在生成 AI 洞察");
@@ -425,33 +474,29 @@
       '<div class="assistant-status">' + (aiLoading ? esc(loadingText) + "…" : "已读取学生档案、任务、提交与点评记录") +
       '</div></div></div>' +
       '<span class="assistant-source">' + esc(source) + '</span></div>' +
-      renderReportBadges(report) +
       '<div id="assistantMessages" class="assistant-messages"></div>' +
-      '<div class="assistant-quick"><button type="button" data-question="哪些提交最需要我优先点评？">优先点评</button>' +
-      '<button type="button" data-question="本周任务负担是否可能偏重？">任务负担</button>' +
-      '<button type="button" data-question="家长通常在什么时间提交任务？">提交时段</button>' +
-      '<button type="button" data-question="请给我一份下周任务调整建议。">下周建议</button></div>' +
       '<form id="assistantForm" class="assistant-compose"><textarea id="assistantInput" class="assistant-input" rows="1" ' +
-      'placeholder="继续追问班级数据，例如：哪些家庭适合收到更短的任务？"></textarea>' +
-      '<button id="assistantSend" class="assistant-send" type="submit">发送</button></form>' +
+      'placeholder="询问班级学情，或输入“帮我写催交通知”…"></textarea>' +
+      '<button id="assistantSend" class="assistant-send" type="submit" aria-label="发送" disabled>↑</button></form>' +
       '<div class="assistant-note">分析依据为系统内已授权的班级数据；家长行为信号仅用于支持沟通，不代表对家长关注程度的绝对判断。</div>' +
       (aiLoading ? '<div class="assistant-loading" role="status" aria-label="AI 正在加载">' +
         '<img src="assets/site-logo.png" alt=""><span>' + esc(loadingText) + '</span></div>' : '') + '</section>';
   }
 
-  function insertMessage(role, content, sources, extraClass) {
+  function insertMessage(role, content, sources, extraClass, htmlContent, withFollowups) {
     var root = document.getElementById("assistantMessages");
     if (!root) return null;
     var isUser = role === "user";
     var html = '<div class="assistant-message ' + (isUser ? "user" : "assistant") +
       (extraClass ? " " + extraClass : "") + '">' +
       '<span class="assistant-avatar">' + (isUser ? "我" : "AI") + '</span>' +
-      '<div><div class="assistant-bubble">' + esc(content) + '</div>';
+      '<div><div class="assistant-bubble">' + (!isUser && htmlContent ? htmlContent : esc(content)) + '</div>';
     if (!isUser && sources && sources.length) {
       html += '<div class="assistant-citations">参考：' + sources.map(function (source) {
         return esc(source.title);
       }).join("、") + '</div>';
     }
+    if (!isUser && withFollowups) html += renderFollowupChips();
     html += '</div></div>';
     root.insertAdjacentHTML("beforeend", html);
     var messageEl = root.lastElementChild;
@@ -474,6 +519,13 @@
     saveMessage(role, content, sources);
   }
 
+  function appendBriefingMessage(report) {
+    var text = assistantGreeting(report);
+    var inserted = insertMessage("assistant", text, [], "briefing", renderBriefingBubble(report), false);
+    if (!inserted) return;
+    saveMessage("assistant", text, []);
+  }
+
   function setMessageSources(messageEl, sources) {
     if (!messageEl || !sources || !sources.length) return;
     var wrap = messageEl.children[1];
@@ -484,6 +536,13 @@
     citations.className = "assistant-citations";
     citations.textContent = "参考：" + sources.map(function (source) { return source.title; }).join("、");
     wrap.appendChild(citations);
+  }
+
+  function setMessageFollowups(messageEl) {
+    if (!messageEl) return;
+    var wrap = messageEl.children[1];
+    if (!wrap || wrap.querySelector(".assistant-followups")) return;
+    wrap.insertAdjacentHTML("beforeend", renderFollowupChips());
   }
 
   function createStreamingAssistantMessage(onDone) {
@@ -511,6 +570,7 @@
       }
       if (inserted.messageEl) inserted.messageEl.classList.remove("streaming");
       setMessageSources(inserted.messageEl, sources);
+      setMessageFollowups(inserted.messageEl);
       saveMessage("assistant", displayed, sources);
       if (onDone) onDone();
     }
@@ -568,7 +628,8 @@
     appendMessage("user", question);
     var stream = createStreamingAssistantMessage(function () {
       state.sending = false;
-      if (sendButton) sendButton.disabled = false;
+      var input = document.getElementById("assistantInput");
+      if (sendButton) sendButton.disabled = !(input && input.value.trim());
     });
     var auth = getAuth();
     fetch(API_BASE + "/api/teacher/ai-chat?stream=1", {
@@ -708,8 +769,8 @@
       aiPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看 AI 分析。</p>';
     } else {
       dataPanel += notices + renderDataBoard(dims);
-      aiPanel += renderAiActionHub(ai, report);
-      if (ai.risks && ai.risks.length) {
+      if (!isAiPage) aiPanel += renderAiActionHub(ai, report);
+      if (!isAiPage && ai.risks && ai.risks.length) {
         aiPanel += '<div class="warn-note"><b>谨慎解读：</b>' + esc(ai.risks.join("；")) + '</div>';
       }
     }
@@ -719,10 +780,10 @@
     document.getElementById("reportBody").innerHTML = html;
     if (options.restoreMessages) {
       // 问候语始终按最新逻辑与最新数据重新生成，历史对话恢复时跳过缓存的旧问候语
-      appendMessage("assistant", assistantGreeting(report));
+      appendBriefingMessage(report);
       restoreChat(true);
     } else {
-      appendMessage("assistant", assistantGreeting(report));
+      appendBriefingMessage(report);
     }
     bindAssistant();
     bindDashboardTabs();
@@ -731,18 +792,44 @@
   function bindAssistant() {
     var form = document.getElementById("assistantForm");
     var input = document.getElementById("assistantInput");
+    var sendButton = document.getElementById("assistantSend");
     if (!form || !input) return;
+    function autoSize() {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 132) + "px";
+    }
+    function updateSendState() {
+      var hasText = !!input.value.trim();
+      form.classList.toggle("has-input", hasText);
+      if (sendButton) sendButton.disabled = state.sending || !hasText;
+    }
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       var value = input.value.trim();
       input.value = "";
+      autoSize();
+      updateSendState();
       sendQuestion(value);
     });
-    document.querySelectorAll(".assistant-quick button").forEach(function (button) {
-      button.addEventListener("click", function () {
+    input.addEventListener("input", function () {
+      autoSize();
+      updateSendState();
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    document.querySelectorAll(".assistant-shell").forEach(function (shell) {
+      shell.addEventListener("click", function (event) {
+        var button = event.target.closest("button[data-question]");
+        if (!button || !shell.contains(button)) return;
         sendQuestion(button.getAttribute("data-question"));
       });
     });
+    autoSize();
+    updateSendState();
   }
 
   function bindDashboardTabs() {
