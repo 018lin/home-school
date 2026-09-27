@@ -37,9 +37,15 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
   }
 
-  function stat(label, value) {
-    return '<div class="stat-card"><div class="stat-value">' + esc(value) +
-      '</div><div class="stat-label">' + esc(label) + '</div></div>';
+  function stat(label, value, meta, formula, href, tone) {
+    var tag = href ? "a" : "div";
+    var attrs = href ? ' href="' + esc(href) + '"' : "";
+    var title = formula ? ' title="' + esc(formula) + '"' : "";
+    return '<' + tag + ' class="stat-card' + (href ? " is-clickable" : "") + (tone ? " " + tone : "") + '"' +
+      attrs + title + '><div class="stat-card-top"><div class="stat-value">' + esc(value) +
+      '</div>' + (formula ? '<span class="metric-help" aria-label="指标说明">?</span>' : '') +
+      '</div><div class="stat-label">' + esc(label) + '</div>' +
+      (meta ? '<div class="stat-meta">' + esc(meta) + '</div>' : '') + '</' + tag + '>';
   }
 
   function emphasize(text) {
@@ -70,6 +76,69 @@
   function badge(label, value, tone) {
     return '<span class="insight-badge ' + (tone || "") + '"><span>' + esc(label) +
       '</span><b>' + esc(value) + '</b></span>';
+  }
+
+  function badgeTip(label, value, tone, formula) {
+    return '<span class="insight-badge ' + (tone || "") + '"' + (formula ? ' title="' + esc(formula) + '"' : '') +
+      '><span>' + esc(label) + '</span><b>' + esc(value) + '</b>' +
+      (formula ? '<i class="metric-help" aria-label="指标说明">?</i>' : '') + '</span>';
+  }
+
+  function percent(part, total) {
+    part = Number(part) || 0;
+    total = Number(total) || 0;
+    return total > 0 ? Math.round(part / total * 100) : 0;
+  }
+
+  function peakTimeText(label) {
+    var ranges = {
+      "上午": "上午 08:00 - 12:00",
+      "下午": "下午 14:00 - 17:00",
+      "晚间": "晚间 18:00 - 21:00",
+      "深夜/清晨": "深夜/清晨 21:00 - 08:00",
+      "未知": "暂无"
+    };
+    return ranges[label] || label || "暂无";
+  }
+
+  function behaviorDim(report) {
+    var found = null;
+    (report.dimensions || []).forEach(function (dim) {
+      if (dim.key === "behaviorSignals") found = dim;
+    });
+    return found;
+  }
+
+  function scopeText(report) {
+    var scope = (report && report.dataScope) || {};
+    var total = scope.realStudents != null ? scope.realStudents : (((report || {}).stats || {}).totalStudents || 0);
+    var excluded = scope.filteredDemoStudents || 0;
+    var text = "基于已激活档案的 " + total + " 名学生";
+    if (excluded > 0) text += "，排除 " + excluded + " 名未入库或演示学生";
+    return text + "；顶部指标与下方分析使用同一统计分母。";
+  }
+
+  function copyTemplate(text) {
+    return '<button type="button" class="inline-action" data-dashboard-copy="' + esc(text) + '">' +
+      esc("一键通知家长补充") + '</button>';
+  }
+
+  function dimensionActionButtons(dim, report) {
+    if (dim.key === "profiles") {
+      return '<div class="dimension-actions">' +
+        copyTemplate("各位家长好，为便于老师更准确地安排家校共育任务，请补充孩子档案中的主要陪伴人、可用时间和兴趣标签。") +
+        '<a class="inline-action secondary" href="teacher-students.html#filter=incomplete">批量完善档案</a></div>';
+    }
+    if (dim.key === "completionTime") {
+      return '<div class="dimension-actions"><a class="inline-action secondary" href="teacher-students.html#filter=unsubmitted">查看未提交学生</a></div>';
+    }
+    if (dim.key === "textMaterials") {
+      return '<div class="dimension-actions"><a class="inline-action secondary" href="teacher-submissions.html">查看提交与点评</a></div>';
+    }
+    if (dim.key === "behaviorSignals") {
+      return '<div class="dimension-actions"><button type="button" class="inline-action secondary" data-question="请根据近30天行为信号，列出需要轻量提醒的学生分组和沟通措辞。">生成分层提醒</button></div>';
+    }
+    return "";
   }
 
   function bars(items) {
@@ -293,21 +362,23 @@
     return labels[key] || "数据维度";
   }
 
-  function renderDimensionBadges(dim) {
+  function renderDimensionBadges(dim, report) {
+    var stats = (report && report.stats) || {};
+    var scope = (report && report.dataScope) || {};
+    var totalStudents = scope.realStudents != null ? scope.realStudents : (stats.totalStudents || 0);
     if (dim.key === "profiles") {
-      var rows = dim.rows || [];
-      var avg = rows.length ? Math.round(rows.reduce(function (sum, row) {
-        return sum + (Number(row.completeness) || 0);
-      }, 0) / rows.length) : 0;
-      return badge("样本", rows.length + "名", "accent") + badge("档案完整", avg + "%", avg < 70 ? "warn" : "calm");
+      var avg = stats.profileCompleteness || 0;
+      return badgeTip("统计分母", totalStudents + "名", "accent", "仅统计已激活、非演示的真实学生档案") +
+        badgeTip("档案完整", avg + "%", avg < 70 ? "warn" : "calm", "完整档案数 / 已激活学生数") +
+        badge("明细预览", ((dim.rows || []).length) + "名", "muted");
     }
     if (dim.key === "completionTime") {
       var peak = "暂无";
       (dim.distribution || []).forEach(function (row) {
         if (row.percent && (peak === "暂无" || row.percent > peak.percent)) peak = row;
       });
-      return badge("活跃期", peak.label || "暂无", "accent") +
-        badge("提交滞后", ((dim.latency && dim.latency.avgSubmitLagHours) || 0) + "小时", "muted");
+      return badgeTip("活跃期", peakTimeText(peak.label || "暂无"), "accent", "按提交时间小时段聚合，展示占比最高时段") +
+        badgeTip("提交滞后", ((dim.latency && dim.latency.avgSubmitLagHours) || 0) + "小时", "muted", "提交时间 - 任务发布时间的平均小时数");
     }
     if (dim.key === "textMaterials") {
       var text = dim.indicators || {};
@@ -326,7 +397,7 @@
 
   function renderDimensionVisual(dim) {
     if (dim.key === "profiles") {
-      return '<div class="compact-note">优先补齐陪伴人、可用时间和兴趣标签，再做个性化任务匹配。</div>';
+      return "";
     }
     if (dim.key === "completionTime") {
       return '<div class="viz-grid"><div><div class="section-title">提交时段</div>' + bars(dim.distribution) +
@@ -352,34 +423,38 @@
     if (dim.key === "profiles") extra = renderProfileRows(dim.rows);
     if (dim.key === "textMaterials") extra = renderSamples(dim.samples);
     if (dim.key === "behaviorSignals") extra = renderBehaviorRows(dim.rows);
-    return '<details class="analysis-details"><summary>查看详细分析</summary>' +
+    var detailLabel = dim.key === "profiles"
+      ? "展开查看 " + ((dim.rows || []).length) + " 名学生明细得分与缺失字段"
+      : "展开查看关键发现、建议动作与明细样本";
+    return '<details class="analysis-details"><summary>' + esc(detailLabel) + '</summary>' +
       '<div class="details-grid"><div><div class="section-title">关键发现</div>' + list(dim.findings) +
       '</div><div><div class="section-title">建议动作</div>' + actionList(dim.actions) +
       '</div></div>' + (extra ? '<div class="section-title">明细样本</div>' + extra : "") + '</details>';
   }
 
-  function renderDimensionPanel(dim, active) {
+  function renderDimensionPanel(dim, active, report) {
     var finding = (dim.findings && dim.findings[0]) || dim.aiSummary || dim.summary || "暂无足够数据。";
     var action = (dim.actions && dim.actions[0]) || "继续观察数据变化。";
     return '<section class="data-pane' + (active ? " active" : "") + '" data-data-panel="' + esc(dim.key) + '">' +
       '<div class="data-pane-head"><div><div class="eyebrow">' + esc(dimensionLabel(dim.key)) +
       '</div><h3>' + esc(dim.title) + '</h3></div><span class="card-tag">' +
-      (dim.aiSummary ? "AI 增强" : "规则分析") + '</span></div><div class="report-badges compact">' +
-      renderDimensionBadges(dim) + '</div><div class="core-finding"><span>核心发现</span><p>' +
+      (dim.aiSummary ? "AI 增强" : "评估依据") + '</span></div><div class="report-badges compact">' +
+      renderDimensionBadges(dim, report) + '</div><div class="core-grid"><div class="core-finding"><span>核心发现</span><p>' +
       emphasize(finding) + '</p></div><div class="core-action"><span>核心建议</span><p>' +
-      emphasize(action) + '</p></div>' + renderDimensionVisual(dim) + renderDimensionDetails(dim) + '</section>';
+      emphasize(action) + '</p>' + dimensionActionButtons(dim, report) + '</div></div>' +
+      renderDimensionVisual(dim) + renderDimensionDetails(dim) + '</section>';
   }
 
-  function renderDataBoard(dims) {
+  function renderDataBoard(dims, report) {
     dims = dims || [];
     if (!dims.length) return "";
     return '<section class="data-board"><div class="board-head"><div><div class="eyebrow">详细学情与数据档案</div>' +
-      '<h2>把明细收进同一个看板</h2></div></div><div class="data-tabs" role="tablist">' +
+      '<h2>班级学情与档案综合分析</h2></div></div><div class="scope-note">' + esc(scopeText(report)) + '</div><div class="data-tabs" role="tablist">' +
       dims.map(function (dim, index) {
         return '<button type="button" class="data-tab' + (index === 0 ? " active" : "") +
           '" data-data-tab="' + esc(dim.key) + '">' + esc(dimensionLabel(dim.key)) + '</button>';
       }).join("") + '</div><div class="data-panels">' + dims.map(function (dim, index) {
-        return renderDimensionPanel(dim, index === 0);
+        return renderDimensionPanel(dim, index === 0, report);
       }).join("") + '</div></section>';
   }
 
@@ -790,13 +865,20 @@
     var stats = report.stats || {};
     var scope = report.dataScope || {};
     var dims = report.dimensions || [];
+    var progress = getStudentProgress(report);
+    var behavior = behaviorDim(report);
+    var behaviorActive = behavior && behavior.indicators ? (behavior.indicators.activeStudents || 0) : (stats.activeStudents || 0);
+    var submittedRate = percent(progress.submittedCount, progress.totalStudents);
+    var completeCount = Math.round((stats.profileCompleteness || 0) * (stats.totalStudents || 0) / 100);
+    var avgTextBaseline = 50;
+    var avgTextMeta = "历史提交 · " + ((stats.avgTextLength || 0) >= avgTextBaseline ? "达到50字基准" : "低于50字基准");
     var statHtml = '<section class="stat-grid">' +
-      stat("学生总数", stats.totalStudents || 0) +
-      stat("档案完整度", (stats.profileCompleteness || 0) + "%") +
-      stat("提交总数", stats.totalSubmissions || 0) +
-      stat("活跃学生", stats.activeStudents || 0) +
-      stat("提交高峰", stats.peakCompletionTime || "暂无") +
-      stat("平均字数", stats.avgTextLength || 0) + '</section>';
+      stat("学生总数", stats.totalStudents || 0, "已激活档案", "已激活、非演示学生数量", "teacher-students.html", "") +
+      stat("档案完整度", (stats.profileCompleteness || 0) + "%", "完整 " + completeCount + " / " + (stats.totalStudents || 0), "完整档案数 / 已激活学生数", "teacher-students.html#filter=incomplete", (stats.profileCompleteness || 0) < 70 ? "warn" : "") +
+      stat("本周提交进度", "实交 " + progress.submittedCount + " / 应交 " + progress.totalStudents, submittedRate + "% · 点击看未提交", "本周已提交学生数 / 已激活学生数", "teacher-students.html#filter=unsubmitted", submittedRate < 70 ? "warn" : "") +
+      stat("近30天活跃学生", behaviorActive + " / " + (stats.totalStudents || 0), "有触达或执行记录", "近30天有站内行为记录的学生数 / 已激活学生数", "teacher-students.html", "") +
+      stat("提交高峰", peakTimeText(stats.peakCompletionTime), "按历史提交时段", "提交时间按小时段聚合，占比最高的时段", "teacher-submissions.html", "") +
+      stat("平均字数", (stats.avgTextLength || 0) + "字", avgTextMeta, "文字提交总字数 / 提交份数；50字为过程描述参考基准", "teacher-submissions.html", (stats.avgTextLength || 0) < avgTextBaseline ? "warn" : "") + '</section>';
     var notices = "";
     if (report.aiError) {
       notices += '<div class="warn-note">AI 调用未完成：' + esc(report.aiError) +
@@ -818,7 +900,7 @@
       dataPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看数据档案。</p>';
       aiPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看 AI 分析。</p>';
     } else {
-      dataPanel += notices + renderDataBoard(dims);
+      dataPanel += notices + renderDataBoard(dims, report);
       if (!isAiPage) aiPanel += renderAiActionHub(ai, report);
       if (!isAiPage && ai.risks && ai.risks.length) {
         aiPanel += '<div class="warn-note"><b>谨慎解读：</b>' + esc(ai.risks.join("；")) + '</div>';
@@ -837,6 +919,7 @@
     }
     bindAssistant();
     bindDashboardTabs();
+    bindDashboardActions();
   }
 
   function bindAssistant() {
@@ -915,6 +998,25 @@
         board.querySelectorAll(".data-pane").forEach(function (panel) {
           panel.classList.toggle("active", panel.getAttribute("data-data-panel") === target);
         });
+      });
+    });
+  }
+
+  function bindDashboardActions() {
+    document.querySelectorAll("[data-dashboard-copy]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var text = button.getAttribute("data-dashboard-copy") || "";
+        if (!text || !(navigator.clipboard && navigator.clipboard.writeText)) return;
+        navigator.clipboard.writeText(text).then(function () {
+          var old = button.textContent;
+          button.textContent = "已复制通知文案";
+          window.setTimeout(function () { button.textContent = old; }, 1600);
+        }).catch(function () {});
+      });
+    });
+    document.querySelectorAll(".data-board button[data-question]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        sendQuestion(button.getAttribute("data-question"));
       });
     });
   }

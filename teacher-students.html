@@ -22,6 +22,7 @@
     .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
     .page-heading h1 { margin: 0; font-size: 22px; line-height: 1.3; }
     .page-heading p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .filter-note { min-height: 20px; margin: -6px 0 14px; color: #1d4ed8; font-size: 13px; font-weight: 650; }
     .table-shell { overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgba(24, 39, 75, .05); }
     .table-scroll { overflow-x: auto; }
     .student-table { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; }
@@ -101,6 +102,7 @@
     <div class="page-heading">
       <div><h1>学生档案</h1><p>按行查看学生基础资料；打开任务建议后可直接发布个性化成长任务。</p></div>
     </div>
+    <p class="filter-note" id="filterNote"></p>
     <div class="table-shell">
       <div class="table-scroll">
         <table class="student-table">
@@ -222,13 +224,53 @@
         }).catch(function () { panel.innerHTML = '<p class="detail-loading">规则建议加载失败，请重试</p>'; });
       }
 
+      function currentFilter() {
+        var hash = String(location.hash || "").replace(/^#/, "");
+        var params = new URLSearchParams(hash);
+        return params.get("filter") || "";
+      }
+      function keyProfileIncomplete(student) {
+        return !String(student.caregiver || "").trim() ||
+          !String(student.timeAvailable || "").trim() ||
+          !String(student.interests || "").trim();
+      }
+      function unsubmittedMap(report) {
+        var map = {};
+        var progress = (report && report.studentProgress) || {};
+        [progress.draftStalled, progress.viewedNotStarted, progress.untouched].forEach(function (group) {
+          (group || []).forEach(function (item) { if (item && item.id != null) map[Number(item.id)] = true; });
+        });
+        return map;
+      }
+      function applyStudentFilter(students, report) {
+        var filter = currentFilter();
+        var note = document.getElementById("filterNote");
+        if (filter === "incomplete") {
+          note.textContent = "已筛选：陪伴人、可用时间或兴趣标签未完善的学生。";
+          return students.filter(keyProfileIncomplete);
+        }
+        if (filter === "unsubmitted") {
+          var pending = unsubmittedMap(report);
+          note.textContent = "已筛选：本周尚未正式提交任务的学生。";
+          return students.filter(function (student) { return pending[Number(student.id)]; });
+        }
+        note.textContent = "";
+        return students;
+      }
+
       function loadStudents() {
-        api("/api/teacher/students").then(function (data) {
+        Promise.all([
+          api("/api/teacher/students"),
+          api("/api/teacher/global-report?local=1").catch(function () { return {}; })
+        ]).then(function (results) {
+          var data = results[0] || {};
+          var report = results[1] || {};
           var list = document.getElementById("studentList");
           var students = data.students || [];
-          document.getElementById("stuCount").textContent = students.length ? "共 " + students.length + " 名" : "";
-          if (!students.length) { list.innerHTML = '<tr><td class="empty" colspan="9">暂无学生档案</td></tr>'; return; }
-          list.innerHTML = students.map(renderStudent).join("");
+          var visibleStudents = applyStudentFilter(students, report);
+          document.getElementById("stuCount").textContent = visibleStudents.length ? "共 " + visibleStudents.length + " 名" : "";
+          if (!visibleStudents.length) { list.innerHTML = '<tr><td class="empty" colspan="9">暂无符合条件的学生档案</td></tr>'; return; }
+          list.innerHTML = visibleStudents.map(renderStudent).join("");
           list.querySelectorAll(".detail-toggle").forEach(function (button) {
             button.addEventListener("click", function () {
               var cid = Number(button.getAttribute("data-cid"));
@@ -240,11 +282,12 @@
               list.querySelectorAll(".detail-toggle").forEach(function (item) { item.textContent = "查看建议"; });
               if (open) return;
               row.classList.add("is-open"); detail.classList.add("is-open"); button.textContent = "收起建议";
-              loadStudentDetail(students.filter(function (item) { return Number(item.id) === cid; })[0] || {}, detail, cid);
+              loadStudentDetail(visibleStudents.filter(function (item) { return Number(item.id) === cid; })[0] || {}, detail, cid);
             });
           });
         }).catch(function () { document.getElementById("studentList").innerHTML = '<tr><td class="empty" colspan="9">加载失败，请刷新重试</td></tr>'; });
       }
+      window.addEventListener("hashchange", loadStudents);
       loadStudents();
     }());
   </script>
