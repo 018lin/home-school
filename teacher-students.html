@@ -51,9 +51,12 @@
     .detail-loading, .empty { padding: 38px 16px; color: #8a95a5; text-align: center; font-size: 13px; }
     .detail-title { margin: 0 0 12px; font-size: 15px; }
     .history { margin-bottom: 16px; padding: 10px 12px; color: #536174; background: #fff; border: 1px solid #e4ebf3; border-radius: 7px; font-size: 13px; }
-    .suggestions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .suggestion { min-width: 0; padding: 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .suggestion.ai-suggestion { border-color: #93c5fd; box-shadow: inset 3px 0 0 #2563eb; }
     .suggestion-meta { color: #64748b; font-size: 12px; }
+    .suggestion-source { display: inline-block; padding: 2px 6px; color: #475569; background: #f1f5f9; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .suggestion.ai-suggestion .suggestion-source { color: #1d4ed8; background: #dbeafe; }
     .suggestion h4 { margin: 7px 0 4px; font-size: 14px; }
     .suggestion p { margin: 5px 0 0; color: #536174; font-size: 12px; line-height: 1.6; white-space: pre-line; }
     .suggestion .action-btn { margin-top: 11px; }
@@ -149,14 +152,16 @@
       }
 
       function suggestionCard(sg, index) {
-        return '<article class="suggestion"><div class="suggestion-meta">' + value(sg.type) + ' · 约 ' + (sg.duration || 20) + ' 分钟</div>' +
+        var isAi = sg.source === "ai";
+        var sourceLabel = isAi ? (sg.aiGenerated ? "AI 分析建议" : "AI 分析建议 · 本地兜底") : "模板建议";
+        return '<article class="suggestion' + (isAi ? ' ai-suggestion' : '') + '"><div class="suggestion-meta"><span class="suggestion-source">' + esc(sourceLabel) + '</span> · ' + value(sg.type) + ' · 约 ' + (sg.duration || 20) + ' 分钟</div>' +
           '<h4>' + value(sg.title) + '</h4><p>' + value(sg.goal) + '</p><p>' + value(sg.steps) + '</p>' +
           '<p>' + value(sg.rationale) + '</p><button class="action-btn use-task" type="button" data-idx="' + index + '">使用此任务</button></article>';
       }
 
       function loadStudentDetail(student, detailRow, childId) {
         var panel = detailRow.querySelector(".detail-panel");
-        panel.innerHTML = '<div class="detail-loading">正在生成规则任务建议…</div>';
+        panel.innerHTML = '<div class="detail-loading">正在读取学生数据并生成建议…</div>';
         api("/api/teacher/student-suggestions?childId=" + childId).then(function (data) {
           var stu = data.student || student;
           var suggestions = data.suggestions || [];
@@ -221,7 +226,7 @@
               else { msg.style.color = "#dc2626"; msg.textContent = res.message || "发布失败"; }
             }).catch(function () { button.disabled = false; button.textContent = "发布给" + (stu.name || "该学生"); msg.style.color = "#dc2626"; msg.textContent = "网络异常"; });
           });
-        }).catch(function () { panel.innerHTML = '<p class="detail-loading">规则建议加载失败，请重试</p>'; });
+        }).catch(function () { panel.innerHTML = '<p class="detail-loading">建议加载失败，请重试</p>'; });
       }
 
       function currentFilter() {

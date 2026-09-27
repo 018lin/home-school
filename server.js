@@ -518,6 +518,120 @@ function parseJsonField(value) {
   try { return JSON.parse(value || "{}") || {}; } catch (e) { return {}; }
 }
 
+function studentSuggestionDuration(answers, student) {
+  const timeAvailable = String((answers || {}).timeAvailable || "");
+  const taskPreference = String((answers || {}).taskPreference || "");
+  let duration = 20;
+  if (timeAvailable.includes("充足") || timeAvailable.includes("很多") || timeAvailable.includes("多")) duration = 30;
+  else if (timeAvailable.includes("有限") || timeAvailable.includes("少") || timeAvailable.includes("很少")) duration = 15;
+  if (taskPreference === "低负担" || taskPreference === "短时长") duration = 15;
+  else if (taskPreference === "长时长") duration = Math.max(duration, 30);
+  if (String(student.caregiver || "").includes("祖辈") || ["奶奶", "爷爷", "外婆", "外公"].some(function (name) {
+    return String(student.caregiver || "").includes(name);
+  })) duration = Math.min(duration, 15);
+  return Math.max(5, Math.min(60, duration));
+}
+
+function studentSuggestionFallback(student, answers, history, behavior) {
+  const interests = String(student.interests || answers.interests || "").split(/[，,]/).map(function (item) {
+    return item.trim();
+  }).filter(Boolean);
+  const focus = interests[0] || "日常生活";
+  const duration = studentSuggestionDuration(answers, student);
+  const behaviorCount = behavior && behavior.events ? behavior.events : 0;
+  const completedCount = history ? history.length : 0;
+  return {
+    title: "数据反馈：" + focus + "亲子观察",
+    type: "观察探究",
+    duration: duration,
+    goal: "结合孩子的兴趣和家庭节奏完成一次低负担观察，帮助教师获得可持续调整任务的过程反馈",
+    steps: "1. 围绕「" + focus + "」选择一个家里或身边的观察对象\n" +
+      "2. 和孩子一起观察 " + duration + " 分钟，记录一个具体发现\n" +
+      "3. 请孩子说说最感兴趣或最困难的地方\n" +
+      "4. 家长提交一张照片或两三句话的过程记录",
+    dialogueTips: "「你刚才发现了什么？下次还想怎么试一试？」",
+    submitHint: "提交一张过程照片或两三句话的观察记录",
+    rationale: "根据学生兴趣「" + focus + "」、已完成 " + completedCount + " 个任务" +
+      (behaviorCount ? "和近30天 " + behaviorCount + " 次站内行为" : "及当前可见档案") +
+      "生成的本地兜底建议，适合先用一次轻量任务验证反馈。",
+    source: "ai",
+    aiGenerated: false,
+    aiStatus: "本地规则兜底"
+  };
+}
+
+function normalizeStudentAiSuggestion(raw, fallback, answers, student) {
+  if (!raw || typeof raw !== "object") return fallback;
+  const title = String(raw.title || "").trim();
+  const goal = String(raw.goal || "").trim();
+  const steps = String(raw.steps || "").trim();
+  if (!title || !goal || !steps) return fallback;
+  const duration = Number(raw.duration) || fallback.duration || studentSuggestionDuration(answers, student);
+  const types = ["阅读", "习惯养成", "学科应用", "情绪社交", "家务实践", "运动健身", "观察探究"];
+  const type = types.includes(String(raw.type || "")) ? String(raw.type) : fallback.type;
+  return {
+    title: title.slice(0, 80),
+    type: type.slice(0, 40),
+    duration: Math.max(5, Math.min(60, duration)),
+    goal: goal.slice(0, 240),
+    steps: steps.slice(0, 1600),
+    dialogueTips: String(raw.dialogueTips || fallback.dialogueTips).slice(0, 240),
+    submitHint: String(raw.submitHint || fallback.submitHint).slice(0, 240),
+    rationale: String(raw.rationale || fallback.rationale).slice(0, 500),
+    source: "ai",
+    aiGenerated: true,
+    aiStatus: "AI 已生成"
+  };
+}
+
+async function generateStudentAiSuggestion(student, answers, history, behavior, fallback) {
+  if (!getZhipuApiKey()) return fallback;
+  const profile = {
+    grade: student.grade || "未填写",
+    gender: student.gender || "未填写",
+    age: student.age || "未填写",
+    caregiver: student.caregiver || "未填写",
+    interests: student.interests || answers.interests || "未填写",
+    familyNote: student.family_note || answers.familyNote || "未填写",
+    timeAvailable: answers.timeAvailable || "未填写",
+    taskPreference: answers.taskPreference || "未填写"
+  };
+  const historyData = (history || []).slice(0, 8).map(function (row) {
+    return {
+      taskType: row.task_type || "未填写",
+      taskTitle: row.task_title || "未填写",
+      status: row.status || "submitted",
+      submittedAt: row.created_at || "",
+      content: String(row.content || "").slice(0, 260)
+    };
+  });
+  const behaviorData = {
+    windowDays: 30,
+    events: behavior.events || 0,
+    activeDays: behavior.activeDays || 0,
+    counts: behavior.counts || {}
+  };
+  const messages = [
+    {
+      role: "system",
+      content: "你是家校共育系统中的教师任务设计助手。请根据单个学生的脱敏档案和参与数据，生成一张可在一周内执行的亲子任务建议。不要评价家长是否关心孩子，不贴标签，不做排名；只依据数据提出温和、低负担、可观察的建议。只返回 JSON，不要 Markdown。"
+    },
+    {
+      role: "user",
+      content: "请生成一张与现有模板不同的 AI 个性化任务建议。返回格式必须是 {\"title\":\"任务标题\",\"type\":\"阅读|习惯养成|学科应用|情绪社交|家务实践|运动健身|观察探究\",\"duration\":20,\"goal\":\"任务目标\",\"steps\":\"每行一个步骤\",\"dialogueTips\":\"对话提示\",\"submitHint\":\"提交要求\",\"rationale\":\"说明使用了哪些学生数据\"}。要求：1. 时长适配家庭可用时间和任务偏好；2. 必须结合兴趣、陪伴人或历史记录中的至少两项信息；3. 步骤不超过4步，材料尽量容易获得；4. 不要虚构没有提供的事实；5. 行为埋点只能用于判断参与节奏，不可推断家长态度；6. 数据不足时明确写出“证据有限”，仍给出可执行的低风险任务。\n\n学生档案：" + JSON.stringify(profile) +
+        "\n历史任务与提交：" + JSON.stringify(historyData) +
+        "\n近30天行为摘要：" + JSON.stringify(behaviorData)
+    }
+  ];
+  try {
+    const content = await requestZhipuChat(messages, { maxTokens: 1000, temperature: 0.25 });
+    return normalizeStudentAiSuggestion(pickJsonObject(content), fallback, answers, student);
+  } catch (e) {
+    console.warn("学生 AI 任务建议生成失败，将使用本地规则兜底：", e.message);
+    return fallback;
+  }
+}
+
 async function teacherParentInfo(childId) {
   const rows = await db.prepare(
     "SELECT u.display_name, b.relation FROM bindings b JOIN users u ON u.id = b.user_id " +
@@ -2766,7 +2880,7 @@ async function handleApi(req, res, pathname, query) {
     });
   }
 
-  /* ---- 规则个性化任务建议（基于学生档案） ---- */
+  /* ---- 个性化任务建议：一个规则模板 + 一个学生级 AI 建议 ---- */
   if (req.method === "GET" && pathname === "/api/teacher/student-suggestions") {
     const childId = query.get("childId") ? Number(query.get("childId")) : null;
     if (!childId) return sendJson(res, 400, { message: "缺少 childId" });
@@ -2783,12 +2897,32 @@ async function handleApi(req, res, pathname, query) {
     const timeAvailable = answers.timeAvailable || "";
     const taskPreference = answers.taskPreference || "";
 
-    // 历史提交
+    // 历史提交：只把正式提交计入完成记录，并把少量过程文本提供给 AI。
     const history = await db.prepare(
-      "SELECT t.task_type FROM submissions s JOIN tasks t ON t.id = s.task_id WHERE s.child_id = ? ORDER BY s.id DESC"
+      "SELECT s.status, s.content, s.created_at, t.title AS task_title, t.task_type " +
+      "FROM submissions s JOIN tasks t ON t.id = s.task_id " +
+      "WHERE s.child_id = ? AND s.status = 'submitted' ORDER BY s.id DESC"
     ).all(childId);
     const completedTypes = [...new Set(history.map(h => h.task_type))];
     const totalCompleted = history.length;
+
+    // 近 30 天行为只用于识别参与节奏，不用于判断家长态度。
+    const behaviorSince = new Date();
+    behaviorSince.setDate(behaviorSince.getDate() - 30);
+    const behaviorSinceText = behaviorSince.getFullYear() + "-" +
+      String(behaviorSince.getMonth() + 1).padStart(2, "0") + "-" +
+      String(behaviorSince.getDate()).padStart(2, "0") + " 00:00:00";
+    const behaviorRows = await db.prepare(
+      "SELECT event_type, created_at FROM events WHERE child_id = ? AND created_at >= ? ORDER BY created_at DESC"
+    ).all(childId, behaviorSinceText);
+    const behavior = { events: behaviorRows.length, activeDays: 0, counts: {} };
+    const activeDays = new Set();
+    behaviorRows.forEach(function (row) {
+      const type = row.event_type || "unknown";
+      behavior.counts[type] = (behavior.counts[type] || 0) + 1;
+      activeDays.add(String(row.created_at || "").slice(0, 10));
+    });
+    behavior.activeDays = activeDays.size;
 
     // 兴趣 → 任务类型
     const interestMap = {
@@ -2854,9 +2988,9 @@ async function handleApi(req, res, pathname, query) {
         suggestedTypes.push(type); usedTypes.add(type);
       }
     });
-    // 至少3个
+    // 至少保留一个模板类型；第二张卡由 AI 单独生成。
     allTypes.forEach(function (type) {
-      if (suggestedTypes.length < 3 && !usedTypes.has(type)) {
+      if (suggestedTypes.length < 1 && !usedTypes.has(type)) {
         suggestedTypes.push(type); usedTypes.add(type);
       }
     });
@@ -2865,16 +2999,11 @@ async function handleApi(req, res, pathname, query) {
     var isGrandparent = student.caregiver && ["奶奶", "爷爷", "外婆", "外公", "祖辈"].some(function (g) {
       return student.caregiver.includes(g);
     });
-    var baseDuration = 20;
-    if (timeAvailable.includes("充足") || timeAvailable.includes("很多") || timeAvailable.includes("多")) baseDuration = 30;
-    else if (timeAvailable.includes("有限") || timeAvailable.includes("少") || timeAvailable.includes("很少")) baseDuration = 15;
-    if (taskPreference === "低负担" || taskPreference === "短时长") baseDuration = 15;
-    else if (taskPreference === "长时长") baseDuration = Math.max(baseDuration, 30);
-    if (isGrandparent) baseDuration = Math.min(baseDuration, 15);
+    var baseDuration = studentSuggestionDuration(answers, student);
 
-    var suggestions = suggestedTypes.slice(0, 3).map(function (type) {
+    var suggestions = suggestedTypes.slice(0, 1).map(function (type) {
       var templates = taskTemplates[type] || taskTemplates["阅读"];
-      var tpl = templates[Math.floor(Math.random() * templates.length)];
+      var tpl = templates[0];
       var reasons = [];
       var matchedInterests = interests.filter(function (i) {
         return Object.keys(interestMap).some(function (key) {
@@ -2895,9 +3024,15 @@ async function handleApi(req, res, pathname, query) {
         title: tpl.title, type: type,
         duration: isGrandparent ? Math.min(baseDuration, 15) : baseDuration,
         goal: tpl.goal, steps: tpl.steps, dialogueTips: tpl.dialogueTips,
-        submitHint: tpl.submitHint, rationale: reasons.join("；")
+        submitHint: tpl.submitHint, rationale: reasons.join("；"),
+        source: "template", aiGenerated: false, aiStatus: "规则模板"
       };
     });
+
+    const templateSuggestion = suggestions[0] || null;
+    const aiFallback = studentSuggestionFallback(student, answers, history, behavior);
+    const aiSuggestion = await generateStudentAiSuggestion(student, answers, history, behavior, aiFallback);
+    suggestions = templateSuggestion ? [templateSuggestion, aiSuggestion] : [aiSuggestion];
 
     return sendJson(res, 200, {
       student: {
@@ -2908,6 +3043,7 @@ async function handleApi(req, res, pathname, query) {
         taskPreference: taskPreference
       },
       suggestions: suggestions,
+      aiMeta: { generated: !!aiSuggestion.aiGenerated, status: aiSuggestion.aiStatus },
       history: { totalCompleted: totalCompleted, completedTypes: completedTypes }
     });
   }
