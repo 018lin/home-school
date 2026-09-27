@@ -33,31 +33,44 @@
     .child-switcher { max-width: 190px; padding: 0 10px; }
     .btn-logout { padding: 0 14px; }
     .user-name { color: var(--text-sub); font-size: 13px; white-space: nowrap; }
-    .main { width: min(900px, calc(100% - 48px)); max-width: 900px; margin: 0 auto; padding: 34px 0 72px; }
-    .page-title { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; }
+    body.feedback-page:has(#feedbackList) .main { width: min(880px, calc(100% - 48px)) !important; max-width: 880px !important; display: block !important; margin: 0 auto !important; padding: 34px 0 72px !important; }
+    body.feedback-page:has(#feedbackList) .main::before { content: "家庭反馈" !important; display: block !important; margin-bottom: 18px !important; color: var(--muted) !important; font-size: 13px !important; font-weight: 550 !important; }
+    .page-title { margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; }
     .page-title h1 { font-size: 28px; line-height: 1.18; font-weight: 680; }
-    .page-title p { margin-top: 8px; color: var(--text-sub); font-size: 14px; }
+    .page-title p { margin-top: 8px; color: var(--text-sub); font-size: 14px; line-height: 1.65; }
+    .page-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
     .feedback-count { color: var(--text-sub); font-size: 13px; white-space: nowrap; }
+    .feedback-filter { width: 132px; min-height: 38px; padding: 0 10px; color: var(--ink); font-size: 13px; font-weight: 600; }
     .feedback-list { display: grid; gap: 16px; }
-    .feedback-card, .empty { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 18px; box-shadow: 0 12px 40px rgba(29,29,31,0.06); padding: 24px; }
-    .feedback-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-    .feedback-title { font-size: 17px; font-weight: 650; line-height: 1.4; }
-    .feedback-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
-    .teacher-badge { flex: 0 0 auto; min-height: 28px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 999px; background: #e9f8f0; color: var(--accent); font-size: 12px; font-weight: 650; }
-    .comment { margin-top: 16px; padding: 16px; border: 1px solid #f2d7ad; border-radius: 12px; background: #fff8ed; color: var(--ink); font-size: 15px; line-height: 1.75; white-space: pre-line; }
-    .work-snapshot { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface-soft); }
-    .work-snapshot .label { color: var(--muted); font-size: 12px; font-weight: 650; }
-    .work-snapshot p:last-child { margin-top: 6px; color: var(--text-sub); font-size: 13px; line-height: 1.65; white-space: pre-line; }
-    .tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .tag { padding: 2px 10px; border: 1px solid var(--line-soft); border-radius: 999px; background: #fff; color: var(--text-sub); font-size: 12px; }
+    .feedback-card, .empty { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 16px; box-shadow: 0 12px 40px rgba(29,29,31,0.06); padding: 22px; }
+    .context-strip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 10px; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 12px; background: #f8fafc; }
+    .context-label { color: var(--muted); font-size: 12px; font-weight: 650; white-space: nowrap; }
+    .context-strip strong, .context-strip p { min-width: 0; color: #3d4652; font-size: 13px; line-height: 1.55; }
+    .context-strip strong { font-weight: 650; }
+    .context-strip p { margin: 0; white-space: pre-line; }
+    .feedback-head { margin-top: 18px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+    .teacher-profile { min-width: 0; display: flex; align-items: center; gap: 12px; }
+    .teacher-avatar { width: 42px; height: 42px; flex: 0 0 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #0f766e; color: #fff; font-size: 16px; font-weight: 700; }
+    .teacher-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--ink); font-size: 15px; line-height: 1.35; }
+    .teacher-name-row strong { font-weight: 680; }
+    .teacher-role { padding: 2px 7px; border-radius: 999px; background: #e9f8f0; color: var(--accent); font-size: 11px; font-weight: 650; }
+    .feedback-time { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .task-pill { flex: 0 0 auto; min-height: 28px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 999px; background: #edf5ff; color: #0057b8; font-size: 12px; font-weight: 650; }
+    .comment { margin-top: 16px; padding: 17px 18px; border: 1px solid #dbe8ff; border-radius: 12px; background: #f6f9ff; color: var(--ink); }
+    .comment-label, .ability-label { display: block; color: var(--muted); font-size: 12px; font-weight: 650; line-height: 1.4; }
+    .comment p { margin-top: 8px; font-size: 16px; line-height: 1.72; white-space: pre-line; }
+    .ability-section { margin-top: 14px; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+    .tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+    .tag { padding: 4px 10px; border: 1px solid #d6eee8; border-radius: 999px; background: #f0faf7; color: var(--accent); font-size: 12px; font-weight: 650; }
+    .no-tags { color: var(--muted); font-size: 13px; line-height: 1.55; text-align: right; }
     .empty { min-height: 320px; display: grid; place-items: center; text-align: center; color: var(--text-sub); }
     .empty h2 { color: var(--ink); font-size: 20px; }
     .empty p { margin-top: 8px; font-size: 14px; line-height: 1.7; }
-    @media (max-width: 900px) { .topbar { align-items: flex-start; flex-wrap: wrap; padding: 12px 18px; gap: 10px; } .parent-nav { order: 3; width: 100%; } .user-area { margin-left: auto; } .main { width: min(100% - 40px, 760px); padding-top: 28px; } }
-    @media (max-width: 640px) { .main { width: min(100% - 28px, 560px); padding-top: 22px; } .page-title, .feedback-head { display: block; } .page-title h1 { font-size: 24px; } .feedback-card, .empty { padding: 18px; border-radius: 12px; } .teacher-badge { margin-top: 12px; } .user-name { display: none; } .child-switcher { max-width: 150px; } }
+    @media (max-width: 900px) { .topbar { align-items: flex-start; flex-wrap: wrap; padding: 12px 18px; gap: 10px; } .parent-nav { order: 3; width: 100%; } .user-area { margin-left: auto; } body.feedback-page:has(#feedbackList) .main { width: min(100% - 40px, 760px) !important; padding-top: 28px !important; } }
+    @media (max-width: 640px) { body.feedback-page:has(#feedbackList) .main { width: min(100% - 28px, 560px) !important; padding-top: 22px !important; } .page-title, .feedback-head, .ability-section { display: block; } .page-title h1 { font-size: 24px; } .page-actions { margin-top: 14px; justify-content: space-between; } .feedback-filter { width: 126px; } .feedback-card, .empty { padding: 18px; border-radius: 12px; } .context-strip { grid-template-columns: 1fr; gap: 4px; } .teacher-profile { margin-bottom: 12px; } .tags { justify-content: flex-start; margin-top: 10px; } .no-tags { margin-top: 8px; text-align: left; } .user-name { display: none; } .child-switcher { max-width: 150px; } }
   </style>
 </head>
-<body>
+<body class="feedback-page">
   <header class="topbar">
     <div class="brand"><span class="logo"></span>家校共育</div>
     <nav class="parent-nav" aria-label="家长端导航">
@@ -75,9 +88,12 @@
     <div class="page-title">
       <div>
         <h1>教师的反馈</h1>
-        <p>集中查看老师对每次提交的点评和能力标签。</p>
+        <p>集中查看老师对每次提交的点评、提交上下文和评价维度。</p>
       </div>
-      <span class="feedback-count" id="feedbackCount"></span>
+      <div class="page-actions">
+        <span class="feedback-count" id="feedbackCount"></span>
+        <select class="feedback-filter" id="typeFilter" title="按任务类型筛选" aria-label="按任务类型筛选"></select>
+      </div>
     </div>
     <section class="empty" id="emptyState" style="display:none"><div><h2>还没有收到教师反馈</h2><p>正式提交任务后，老师点评会显示在这里。</p></div></section>
     <section class="feedback-list" id="feedbackList"></section>
@@ -115,28 +131,94 @@
         return data.child && data.child.id;
       }
 
-      function shortText(text) {
+      var feedbackState = { items: [], childId: null, type: "all" };
+
+      function shortText(text, limit) {
         text = String(text || "");
-        return text.length > 90 ? text.slice(0, 90) + "..." : text;
+        limit = limit || 90;
+        return text.length > limit ? text.slice(0, limit) + "..." : text;
+      }
+
+      function formatDateTime(value) {
+        if (!value) return "时间待确认";
+        var date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          date = new Date(String(value).replace(" ", "T"));
+        }
+        if (Number.isNaN(date.getTime())) return String(value);
+        return new Intl.DateTimeFormat("zh-CN", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }).format(date).replace(/\s+/g, " ");
+      }
+
+      function teacherInitial(name) {
+        name = String(name || "老师").trim();
+        return name ? name.charAt(0) : "师";
+      }
+
+      function splitTags(value) {
+        return String(value || "").split(/[，,;；|]/).map(function (t) { return t.trim(); }).filter(Boolean);
+      }
+
+      function updateTypeFilter(items) {
+        var filter = document.getElementById("typeFilter");
+        var types = Array.from(new Set(items.map(function (it) { return it.task_type || "未分类"; })));
+        filter.innerHTML = '<option value="all">全部类型</option>' + types.map(function (type) {
+          return '<option value="' + esc(type) + '">' + esc(type) + '</option>';
+        }).join("");
+        filter.value = types.indexOf(feedbackState.type) >= 0 ? feedbackState.type : "all";
+        feedbackState.type = filter.value;
+        filter.style.display = types.length > 1 ? "inline-block" : "none";
+      }
+
+      function renderCurrent() {
+        var allItems = feedbackState.items;
+        var feedbackItems = allItems.filter(function (it) {
+          return feedbackState.type === "all" || (it.task_type || "未分类") === feedbackState.type;
+        });
+        var countText = "";
+        if (allItems.length) {
+          countText = feedbackItems.length === allItems.length ? "共 " + allItems.length + " 条反馈" : "显示 " + feedbackItems.length + " / 共 " + allItems.length + " 条反馈";
+        }
+        document.getElementById("feedbackCount").textContent = countText;
+        document.getElementById("emptyState").style.display = feedbackItems.length ? "none" : "grid";
+        document.getElementById("feedbackList").innerHTML = feedbackItems.map(function (it) {
+          var teacherName = it.teacher_name || "老师";
+          var tags = splitTags(it.feedback_tags);
+          var h = '<article class="feedback-card">';
+          h += '<div class="context-strip">';
+          h += '<span class="context-label">关联任务</span><strong title="' + esc(it.title) + '">' + esc(shortText(it.title, 64) || "未命名任务") + '</strong>';
+          h += '<span class="context-label">学生提交</span><p>' + esc(shortText(it.content || "未填写提交说明", 86)) + '</p>';
+          h += '</div>';
+          h += '<div class="feedback-head"><div class="teacher-profile">';
+          h += '<span class="teacher-avatar" aria-hidden="true">' + esc(teacherInitial(teacherName)) + '</span>';
+          h += '<div><div class="teacher-name-row"><strong>' + esc(teacherName) + '</strong><span class="teacher-role">点评人</span></div>';
+          h += '<p class="feedback-time">反馈于 ' + esc(formatDateTime(it.feedback_at || it.created_at)) + '</p></div></div>';
+          h += '<span class="task-pill">' + esc(it.task_type || "综合任务") + '</span></div>';
+          h += '<div class="comment"><span class="comment-label">教师评语</span><p>' + esc(it.feedback_comment || "老师已完成点评。") + '</p></div>';
+          h += '<section class="ability-section"><span class="ability-label">评价维度</span>';
+          if (tags.length) {
+            h += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join("") + '</div>';
+          } else {
+            h += '<p class="no-tags">老师暂未添加能力标签</p>';
+          }
+          return h + '</section></article>';
+        }).join("");
       }
 
       function render(items, childId) {
-        var feedbackItems = items.filter(function (it) { return it.feedback_id; });
-        document.getElementById("feedbackCount").textContent = feedbackItems.length ? "共 " + feedbackItems.length + " 条反馈" : "";
-        document.getElementById("emptyState").style.display = feedbackItems.length ? "none" : "grid";
-        document.getElementById("feedbackList").innerHTML = feedbackItems.map(function (it) {
-          var h = '<article class="feedback-card">';
-          h += '<div class="feedback-head"><div><p class="feedback-title">' + esc(it.title) + '</p>';
-          h += '<p class="feedback-meta">' + esc(it.task_type) + ' · 第 ' + esc(it.week_start) + ' 周 · 反馈于 ' + esc(it.feedback_at || it.created_at) + '</p></div>';
-          h += '<span class="teacher-badge">' + esc(it.teacher_name || "老师") + '</span></div>';
-          h += '<div class="comment">' + esc(it.feedback_comment || "") + '</div>';
-          var tags = (it.feedback_tags || "").split(",").filter(function (t) { return t && t.trim(); });
-          if (tags.length) h += '<div class="tags">' + tags.map(function (t) { return '<span class="tag">' + esc(t.trim()) + '</span>'; }).join("") + '</div>';
-          h += '<div class="work-snapshot"><p class="label">本次提交</p><p>' + esc(shortText(it.content)) + '</p></div>';
-          return h + '</article>';
-        }).join("");
-        if (feedbackItems.length) {
-          trackEvent("feedback_read", { childId: childId, meta: { count: feedbackItems.length, source: "feedback-page" } });
+        feedbackState.items = items.filter(function (it) { return it.feedback_id; });
+        feedbackState.childId = childId;
+        updateTypeFilter(feedbackState.items);
+        renderCurrent();
+        if (feedbackState.items.length) {
+          trackEvent("feedback_read", { childId: childId, meta: { count: feedbackState.items.length, source: "feedback-page" } });
         }
       }
 
@@ -160,7 +242,12 @@
 
       document.getElementById("childSwitcher").addEventListener("change", function () {
         setSelectedChildId(this.value);
+        feedbackState.type = "all";
         loadFeedback(this.value);
+      });
+      document.getElementById("typeFilter").addEventListener("change", function () {
+        feedbackState.type = this.value;
+        renderCurrent();
       });
       document.getElementById("logoutBtn").addEventListener("click", function () {
         api("/api/auth/logout", { method: "POST" }).catch(function () {});
