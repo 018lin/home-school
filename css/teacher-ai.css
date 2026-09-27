@@ -215,6 +215,21 @@ body.global-report .main {
   white-space: pre-wrap;
 }
 
+.assistant-message.streaming .assistant-bubble::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 1.15em;
+  margin-left: 2px;
+  border-right: 2px solid var(--assistant-purple);
+  vertical-align: -0.18em;
+  animation: assistant-caret 0.85s steps(1) infinite;
+}
+
+@keyframes assistant-caret {
+  50% { opacity: 0; }
+}
+
 .assistant-message.user .assistant-bubble {
   background: #f1f5ff;
   border-color: #dbe6ff;

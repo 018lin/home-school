@@ -439,11 +439,12 @@
         '<img src="assets/site-logo.png" alt=""><span>' + esc(loadingText) + '</span></div>' : '') + '</section>';
   }
 
-  function appendMessage(role, content, sources) {
+  function insertMessage(role, content, sources, extraClass) {
     var root = document.getElementById("assistantMessages");
-    if (!root) return;
+    if (!root) return null;
     var isUser = role === "user";
-    var html = '<div class="assistant-message ' + (isUser ? "user" : "assistant") + '">' +
+    var html = '<div class="assistant-message ' + (isUser ? "user" : "assistant") +
+      (extraClass ? " " + extraClass : "") + '">' +
       '<span class="assistant-avatar">' + (isUser ? "我" : "AI") + '</span>' +
       '<div><div class="assistant-bubble">' + esc(content) + '</div>';
     if (!isUser && sources && sources.length) {
@@ -453,9 +454,93 @@
     }
     html += '</div></div>';
     root.insertAdjacentHTML("beforeend", html);
+    var messageEl = root.lastElementChild;
     root.scrollTop = root.scrollHeight;
+    return {
+      root: root,
+      messageEl: messageEl,
+      bubbleEl: messageEl ? messageEl.querySelector(".assistant-bubble") : null
+    };
+  }
+
+  function saveMessage(role, content, sources) {
     state.messages.push({ role: role, content: content, sources: sources || [] });
     saveCached(cacheKey("Chat"), state.messages);
+  }
+
+  function appendMessage(role, content, sources) {
+    var inserted = insertMessage(role, content, sources);
+    if (!inserted) return;
+    saveMessage(role, content, sources);
+  }
+
+  function setMessageSources(messageEl, sources) {
+    if (!messageEl || !sources || !sources.length) return;
+    var wrap = messageEl.children[1];
+    if (!wrap) return;
+    var old = wrap.querySelector(".assistant-citations");
+    if (old) old.remove();
+    var citations = document.createElement("div");
+    citations.className = "assistant-citations";
+    citations.textContent = "参考：" + sources.map(function (source) { return source.title; }).join("、");
+    wrap.appendChild(citations);
+  }
+
+  function createStreamingAssistantMessage(onDone) {
+    var inserted = insertMessage("assistant", "", [], "streaming");
+    var queue = "";
+    var displayed = "";
+    var finished = false;
+    var saved = false;
+    var sources = [];
+    var timer = null;
+
+    function render() {
+      if (!inserted || !inserted.bubbleEl) return;
+      inserted.bubbleEl.textContent = displayed || " ";
+      inserted.root.scrollTop = inserted.root.scrollHeight;
+    }
+
+    function complete() {
+      if (!finished || queue || timer) return;
+      if (saved) return;
+      saved = true;
+      if (!displayed) {
+        displayed = "暂时没有得到回答。";
+        render();
+      }
+      if (inserted.messageEl) inserted.messageEl.classList.remove("streaming");
+      setMessageSources(inserted.messageEl, sources);
+      saveMessage("assistant", displayed, sources);
+      if (onDone) onDone();
+    }
+
+    function tick() {
+      timer = null;
+      if (!queue) { complete(); return; }
+      var take = queue.length > 120 ? 4 : (queue.length > 40 ? 2 : 1);
+      displayed += queue.slice(0, take);
+      queue = queue.slice(take);
+      render();
+      timer = window.setTimeout(tick, queue.length > 120 ? 4 : 12);
+    }
+
+    return {
+      push: function (text) {
+        queue += String(text || "");
+        if (!timer) tick();
+      },
+      fail: function (message) {
+        queue += (displayed || queue ? "\n\n" : "") + (message || "这次查询没有完成，请稍后再试。");
+        finished = true;
+        if (!timer) tick();
+      },
+      finish: function (nextSources) {
+        sources = nextSources || [];
+        finished = true;
+        if (!timer) tick();
+      }
+    };
   }
 
   function restoreChat(skipGreeting) {
@@ -475,24 +560,85 @@
     question = String(question || "").trim();
     if (!question || state.sending) return;
     state.sending = true;
-    document.getElementById("assistantSend").disabled = true;
+    var sendButton = document.getElementById("assistantSend");
+    if (sendButton) sendButton.disabled = true;
+    var history = state.messages.slice(-7).map(function (message) {
+      return { role: message.role, content: message.content };
+    });
     appendMessage("user", question);
-    api("/api/teacher/ai-chat", {
-      method: "POST",
-      body: {
-        question: question,
-        history: state.messages.slice(-7).map(function (message) {
-          return { role: message.role, content: message.content };
-        })
-      }
-    }).then(function (result) {
-      var answer = result.answer || "暂时没有得到回答。";
-      appendMessage("assistant", answer, result.sources || []);
-    }).catch(function () {
-      appendMessage("assistant", "这次查询没有完成，请稍后再试。");
-    }).finally(function () {
+    var stream = createStreamingAssistantMessage(function () {
       state.sending = false;
-      document.getElementById("assistantSend").disabled = false;
+      if (sendButton) sendButton.disabled = false;
+    });
+    var auth = getAuth();
+    fetch(API_BASE + "/api/teacher/ai-chat?stream=1", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": auth && auth.token ? "Bearer " + auth.token : ""
+      },
+      body: JSON.stringify({
+        question: question,
+        history: history
+      })
+    }).then(function (res) {
+      if (res.status === 401) {
+        localStorage.removeItem("auth");
+        window.location.href = "index.html";
+        throw new Error("请先登录");
+      }
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          throw new Error(data.message || "这次查询没有完成，请稍后再试。");
+        });
+      }
+      if (!res.body || !window.TextDecoder) {
+        return res.json().then(function (result) {
+          stream.push(result.answer || "暂时没有得到回答。");
+          stream.finish(result.sources || []);
+        });
+      }
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder("utf-8");
+      var buffer = "";
+      var gotDone = false;
+
+      function handleBlock(block) {
+        var eventName = "message";
+        var dataLines = [];
+        block.split(/\r?\n/).forEach(function (line) {
+          if (line.indexOf("event:") === 0) eventName = line.slice(6).trim();
+          if (line.indexOf("data:") === 0) dataLines.push(line.slice(5).trimStart());
+        });
+        if (!dataLines.length) return;
+        var data = {};
+        try { data = JSON.parse(dataLines.join("\n")); } catch (e) { return; }
+        if (eventName === "delta") stream.push(data.content || "");
+        if (eventName === "error") stream.fail(data.message || "AI 连接中断，以上为已生成内容。");
+        if (eventName === "done") {
+          gotDone = true;
+          stream.finish(data.sources || []);
+        }
+      }
+
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.done) {
+            buffer += decoder.decode();
+            if (buffer.trim()) handleBlock(buffer);
+            if (!gotDone) stream.finish([]);
+            return;
+          }
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var blocks = buffer.split(/\r?\n\r?\n/);
+          buffer = blocks.pop() || "";
+          blocks.forEach(handleBlock);
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function (err) {
+      stream.fail(err && err.message ? err.message : "这次查询没有完成，请稍后再试。");
     });
   }
 

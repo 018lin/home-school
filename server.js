@@ -58,6 +58,33 @@ function sendJson(res, code, obj) {
   res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
   res.end(body);
 }
+
+function sendSseHeaders(res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+  res.write(": connected\n\n");
+}
+
+function writeSse(res, event, data) {
+  res.write("event: " + event + "\n");
+  res.write("data: " + JSON.stringify(data || {}) + "\n\n");
+}
+
+function delay(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+async function streamPlainText(res, text) {
+  const value = String(text || "");
+  for (let i = 0; i < value.length; i += 24) {
+    writeSse(res, "delta", { content: value.slice(i, i + 24) });
+    await delay(10);
+  }
+}
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
@@ -428,6 +455,63 @@ async function requestZhipuChat(messages, options) {
   const data = await response.json();
   return data && data.choices && data.choices[0] && data.choices[0].message
     ? String(data.choices[0].message.content || "") : "";
+}
+
+async function requestZhipuChatStream(messages, options, onDelta) {
+  const apiKey = getZhipuApiKey();
+  if (!apiKey) return "";
+  options = options || {};
+  const response = await fetch(getZhipuEndpoint("chat"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + apiKey
+    },
+    body: JSON.stringify({
+      model: options.model || getZhipuChatModel(),
+      messages: messages,
+      stream: true,
+      temperature: options.temperature == null ? 0.2 : options.temperature,
+      max_tokens: options.maxTokens || 1200
+    })
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(function () { return ""; });
+    throw new Error("智谱 Chat API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let fullText = "";
+
+  async function handleBlock(block) {
+    const lines = block.split(/\r?\n/).filter(function (line) { return line.startsWith("data:"); });
+    if (!lines.length) return;
+    const dataText = lines.map(function (line) { return line.slice(5).trimStart(); }).join("\n");
+    if (!dataText || dataText === "[DONE]") return;
+    let payload = null;
+    try { payload = JSON.parse(dataText); } catch (e) { return; }
+    const choice = payload && payload.choices && payload.choices[0];
+    const delta = choice && choice.delta ? choice.delta : null;
+    const message = choice && choice.message ? choice.message : null;
+    const content = (delta && delta.content != null) ? delta.content : (message && message.content != null ? message.content : "");
+    if (!content) return;
+    fullText += content;
+    if (onDelta) await onDelta(content);
+  }
+
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || "";
+    for (const block of blocks) await handleBlock(block);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) await handleBlock(buffer);
+  return fullText;
 }
 
 function parseJsonField(value) {
@@ -1098,8 +1182,7 @@ function triggerTeacherAiReportRefresh(cacheKey, contentHash, report) {
   return true;
 }
 
-async function generateTeacherChatAnswer(question, history, docs) {
-  if (!getZhipuApiKey()) return "";
+function buildTeacherChatMessages(question, history, docs) {
   const context = docs.map(function (doc, index) {
     return "[资料" + (index + 1) + "] " + doc.title + "\n" + doc.content;
   }).join("\n\n");
@@ -1109,7 +1192,7 @@ async function generateTeacherChatAnswer(question, history, docs) {
       content: String(item && item.content || "").slice(0, 800)
     };
   });
-  return requestZhipuChat([
+  return [
     {
       role: "system",
       content: "你是家校共育系统的教师端 AI 助手。请只根据提供的班级资料回答，可以做明确标注为推测的合理推理。回答用中文，先给结论，再给依据和建议。不能把站内行为直接说成家长是否关心，也不要公开比较学生。若资料不足，直接说明证据不足并告诉老师还需要什么数据。涉及学生时可以使用资料中的学生姓名，但不要输出家长账号、密码或无关隐私。资料中会包含家长近30天站内行为埋点统计（查看、浏览、起草、提交、发起沟通、自主定制任务等），以及家长自主定制任务提议和教师审核结果；这些可用于回答参与节奏、任务意愿、任务设计和沟通时机类问题，但绝不能据此断言家长是否关心孩子。"
@@ -1117,7 +1200,17 @@ async function generateTeacherChatAnswer(question, history, docs) {
     { role: "system", content: "检索到的班级资料：\n" + context },
     ...safeHistory,
     { role: "user", content: question }
-  ], { maxTokens: 1000, temperature: 0.3 });
+  ];
+}
+
+async function generateTeacherChatAnswer(question, history, docs) {
+  if (!getZhipuApiKey()) return "";
+  return requestZhipuChat(buildTeacherChatMessages(question, history, docs), { maxTokens: 1000, temperature: 0.3 });
+}
+
+async function generateTeacherChatAnswerStream(question, history, docs, onDelta) {
+  if (!getZhipuApiKey()) return "";
+  return requestZhipuChatStream(buildTeacherChatMessages(question, history, docs), { maxTokens: 1000, temperature: 0.3 }, onDelta);
 }
 
 async function answerTeacherMetricQuestion(question) {
@@ -1162,7 +1255,7 @@ async function seed() {
 
     teacherId = await db.prepare(
       "INSERT INTO users (account, password_hash, display_name, role) VALUES (?, ?, ?, 'teacher')"
-    ).run("018", hashPassword("018018"), "王老师").lastInsertRowid;
+    ).run("018", hashPassword("018018"), "老师").lastInsertRowid;
 
     childId = await db.prepare("INSERT INTO children (name, grade) VALUES (?, ?)").run("小明", "三年级").lastInsertRowid;
     await db.prepare("INSERT INTO bindings (user_id, child_id, relation) VALUES (?, ?, '妈妈')").run(demoUserId, childId);
@@ -1647,6 +1740,7 @@ async function handleApi(req, res, pathname, query) {
     const body = await readBody(req);
     const question = String(body.question || "").trim().slice(0, 1200);
     if (!question) return sendJson(res, 400, { message: "请输入想了解的问题" });
+    const wantsStream = query.get("stream") === "1";
     let indexInfo = { documentCount: 0, embeddedCount: 0 };
     try {
       indexInfo = await syncTeacherVectorIndex();
@@ -1655,6 +1749,17 @@ async function handleApi(req, res, pathname, query) {
     }
     const metricAnswer = await answerTeacherMetricQuestion(question);
     if (metricAnswer) {
+      if (wantsStream) {
+        sendSseHeaders(res);
+        await streamPlainText(res, metricAnswer.answer);
+        writeSse(res, "done", {
+          sources: metricAnswer.sources,
+          provider: "本地规则 + 向量索引",
+          indexedDocuments: indexInfo.documentCount,
+          embeddedDocuments: indexInfo.embeddedCount
+        });
+        return res.end();
+      }
       return sendJson(res, 200, {
         answer: metricAnswer.answer,
         sources: metricAnswer.sources,
@@ -1666,6 +1771,54 @@ async function handleApi(req, res, pathname, query) {
     const matches = await searchTeacherKnowledge(question, 7);
     let answer = "";
     let aiError = "";
+    const sources = matches.slice(0, 5).map(function (doc) {
+      return { title: doc.title, type: doc.metadata && doc.metadata.childId ? "student" : "class" };
+    });
+    if (wantsStream) {
+      sendSseHeaders(res);
+      let streamedAnswer = "";
+      try {
+        if (getZhipuApiKey() && matches.length) {
+          answer = await generateTeacherChatAnswerStream(question, body.history, matches, async function (content) {
+            streamedAnswer += content;
+            writeSse(res, "delta", { content: content });
+          });
+        }
+        if (!answer) {
+          if (!matches.length) {
+            answer = "目前还没有检索到足够的班级资料。请先让家长完成绑定、填写档案或提交任务，再来询问。";
+          } else {
+            answer = "我已找到相关班级资料，但 AI 暂时无法完成自然语言回答。最相关的记录是：" +
+              matches.slice(0, 3).map(function (doc) {
+                return "「" + doc.title + "」" + String(doc.content).split("\n")[0];
+              }).join("；") + "。";
+          }
+          await streamPlainText(res, answer);
+        }
+      } catch (e) {
+        aiError = e.message || "智谱 AI 调用失败";
+        answer = streamedAnswer;
+        if (!answer) {
+          answer = matches.length
+            ? "我已找到相关班级资料，但 AI 暂时无法完成自然语言回答。最相关的记录是：" +
+              matches.slice(0, 3).map(function (doc) {
+                return "「" + doc.title + "」" + String(doc.content).split("\n")[0];
+              }).join("；") + "。"
+            : "目前还没有检索到足够的班级资料。请先让家长完成绑定、填写档案或提交任务，再来询问。";
+          await streamPlainText(res, answer);
+        } else {
+          writeSse(res, "error", { message: "AI 连接中断，以上为已生成内容。" });
+        }
+      }
+      writeSse(res, "done", {
+        sources: sources,
+        provider: getZhipuApiKey() && !aiError ? "智谱 AI + 本地向量检索" : "本地检索",
+        indexedDocuments: indexInfo.documentCount,
+        embeddedDocuments: indexInfo.embeddedCount,
+        aiError: aiError || undefined
+      });
+      return res.end();
+    }
     if (getZhipuApiKey() && matches.length) {
       try {
         answer = await generateTeacherChatAnswer(question, body.history, matches);
@@ -1685,9 +1838,7 @@ async function handleApi(req, res, pathname, query) {
     }
     return sendJson(res, 200, {
       answer: answer,
-      sources: matches.slice(0, 5).map(function (doc) {
-        return { title: doc.title, type: doc.metadata && doc.metadata.childId ? "student" : "class" };
-      }),
+      sources: sources,
       provider: getZhipuApiKey() && !aiError ? "智谱 AI + 本地向量检索" : "本地检索",
       indexedDocuments: indexInfo.documentCount,
       embeddedDocuments: indexInfo.embeddedCount,
