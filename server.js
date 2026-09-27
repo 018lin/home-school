@@ -1257,6 +1257,18 @@ async function getTeacherWeeklyActionContext() {
     "SELECT DISTINCT e.child_id, c.name AS child_name FROM events e JOIN children c ON c.id = e.child_id " +
     "WHERE e.event_type IN ('task_card_viewed','task_detail_viewed') AND e.created_at >= ? AND " + realStudentWhere("c")
   ).all(weekStart + " 00:00:00", ...demoParams(2));
+  const eventRows = await db.prepare(
+    "SELECT e.child_id, e.event_type, c.name AS child_name FROM events e JOIN children c ON c.id = e.child_id " +
+    "WHERE e.created_at >= ? AND " + realStudentWhere("c")
+  ).all(weekStart + " 00:00:00", ...demoParams(2));
+  const eventsByChild = {};
+  eventRows.forEach(function (row) {
+    if (!eventsByChild[row.child_id]) {
+      eventsByChild[row.child_id] = { childId: row.child_id, childName: row.child_name, counts: {}, total: 0 };
+    }
+    eventsByChild[row.child_id].total++;
+    eventsByChild[row.child_id].counts[row.event_type] = (eventsByChild[row.child_id].counts[row.event_type] || 0) + 1;
+  });
   const viewedIds = new Set(viewedRows.map(function (row) { return row.child_id; }));
   const completed = children.filter(function (child) { return submittedIds.has(child.id); });
   const draftStalled = children.filter(function (child) { return !submittedIds.has(child.id) && draftIds.has(child.id); });
@@ -1275,9 +1287,39 @@ async function getTeacherWeeklyActionContext() {
     draftStalled: draftStalled,
     viewedNotStarted: viewedNotStarted,
     untouched: untouched,
+    eventsByChild: eventsByChild,
     completionRate: completionRate,
     reminderWindow: "18:30 - 20:00"
   };
+}
+
+function rankActiveStudents(ctx) {
+  const submitCount = {};
+  const draftCount = {};
+  ctx.submissions.forEach(function (row) { submitCount[row.child_id] = (submitCount[row.child_id] || 0) + 1; });
+  ctx.drafts.forEach(function (row) { draftCount[row.child_id] = (draftCount[row.child_id] || 0) + 1; });
+  return (ctx.completed.concat(ctx.draftStalled, ctx.viewedNotStarted, ctx.untouched)).map(function (child) {
+    const events = ctx.eventsByChild[child.id] || { counts: {}, total: 0 };
+    const counts = events.counts || {};
+    const views = (counts.task_card_viewed || 0) + (counts.task_detail_viewed || 0) + (counts.feedback_card_viewed || 0);
+    const execution = (counts.submission_submitted || 0) + (counts.submission_drafted || 0) +
+      (counts.teacher_contact_started || 0) + (counts.parent_task_request_submitted || 0);
+    const submitted = submitCount[child.id] || 0;
+    const drafts = draftCount[child.id] || 0;
+    const score = submitted * 60 + drafts * 24 + execution * 12 + views * 4 + events.total;
+    return {
+      id: child.id,
+      name: child.name,
+      score: score,
+      submitted: submitted,
+      drafts: drafts,
+      views: views,
+      execution: execution,
+      events: events.total
+    };
+  }).sort(function (a, b) {
+    return b.score - a.score || b.submitted - a.submitted || b.execution - a.execution || b.views - a.views;
+  });
 }
 
 async function answerTeacherLocalActionQuestion(question) {
@@ -1286,10 +1328,34 @@ async function answerTeacherLocalActionQuestion(question) {
   const wantsReminder = /(催交|提醒|通知|话术|文案)/.test(text);
   const wantsBurden = /(负担|减负|合并|任务量|太多|压力)/.test(text);
   const wantsExtend = /(延期|延长|顺延|48小时|四十八小时)/.test(text);
-  if (!wantsProgress && !wantsReminder && !wantsBurden && !wantsExtend) return null;
+  const wantsActive = /(最积极|最活跃|参与度最高|表现最好|完成最多|谁.*积极|哪个学生.*积极|哪个学生.*活跃|表扬谁|值得表扬)/.test(text);
+  if (!wantsProgress && !wantsReminder && !wantsBurden && !wantsExtend && !wantsActive) return null;
   const ctx = await getTeacherWeeklyActionContext();
   const unstartedCount = ctx.viewedNotStarted.length + ctx.untouched.length;
   const sources = [{ title: "本周任务与学生进度" }];
+
+  if (wantsActive) {
+    const ranked = rankActiveStudents(ctx).filter(function (row) { return row.score > 0; });
+    if (!ranked.length) {
+      return {
+        answer: "本周还没有足够的提交、草稿或查看记录来判断“最积极”的学生。建议先看是否已有家长完成绑定、打开任务或提交草稿。",
+        sources: sources
+      };
+    }
+    const top = ranked[0];
+    const topList = ranked.slice(0, 3).map(function (row, index) {
+      return (index + 1) + ". " + row.name + "：提交 " + row.submitted + " 次，草稿 " + row.drafts +
+        " 次，查看 " + row.views + " 次，执行类行为 " + row.execution + " 次";
+    }).join("\n");
+    return {
+      answer: "结论：本周最积极的学生是 " + top.name + "。\n\n" +
+        "依据：" + top.name + " 本周提交 " + top.submitted + " 次，草稿 " + top.drafts + " 次，查看任务/反馈 " +
+        top.views + " 次，执行类行为 " + top.execution + " 次。综合提交完成、草稿推进和站内参与记录后排名最高。\n\n" +
+        "本周积极度前三：\n" + topList + "\n\n" +
+        "可用表扬话术：" + top.name + "本周能主动推进家校任务，完成和查看记录都比较积极，建议继续保持这种及时行动和过程记录的习惯。",
+      sources: sources
+    };
+  }
 
   if (wantsExtend) {
     const priority = ctx.personalTasks.length ? ctx.personalTasks.slice(0, 5).map(function (task) {
