@@ -135,15 +135,15 @@
     return found;
   }
 
-  function copyTemplate(text) {
-    return '<button type="button" class="inline-action" data-dashboard-copy="' + esc(text) + '">' +
-      esc("复制补档通知") + '</button>';
+  function notificationButton(text) {
+    return '<button type="button" class="inline-action" data-dashboard-notify="' + esc(text) + '">' +
+      esc("一键通知家长") + '</button>';
   }
 
   function dimensionActionButtons(dim, report) {
     if (dim.key === "profiles") {
       return '<div class="dimension-actions">' +
-        copyTemplate("各位家长好，为便于老师更准确地安排家校共育任务，请补充孩子档案中的主要陪伴人、可用时间和兴趣标签。") +
+        notificationButton("各位家长好，为便于老师更准确地安排家校共育任务，请补充孩子档案中的主要陪伴人、可用时间和兴趣标签。") +
         '<a class="inline-action secondary" href="teacher-students.html#filter=incomplete">批量完善档案</a></div>';
     }
     if (dim.key === "completionTime") {
@@ -1019,15 +1019,33 @@
   }
 
   function bindDashboardActions() {
-    document.querySelectorAll("[data-dashboard-copy]").forEach(function (button) {
+    document.querySelectorAll("[data-dashboard-notify]").forEach(function (button) {
       button.addEventListener("click", function () {
-        var text = button.getAttribute("data-dashboard-copy") || "";
-        if (!text || !(navigator.clipboard && navigator.clipboard.writeText)) return;
-        navigator.clipboard.writeText(text).then(function () {
-          var old = button.textContent;
-          button.textContent = "已复制通知文案";
-          window.setTimeout(function () { button.textContent = old; }, 1600);
-        }).catch(function () {});
+        var content = button.getAttribute("data-dashboard-notify") || "";
+        if (!content || button.disabled) return;
+        var oldText = button.textContent;
+        button.disabled = true;
+        button.textContent = "发送中";
+        api("/api/teacher/notifications", {
+          method: "POST",
+          body: {
+            title: "请补充孩子档案信息",
+            content: content
+          }
+        }).then(function (result) {
+          var count = Number(result.recipientCount || 0);
+          button.textContent = count ? "已通知 " + count + " 位家长" : "暂无真实家长账号";
+          window.setTimeout(function () {
+            button.textContent = oldText;
+            button.disabled = false;
+          }, 2200);
+        }).catch(function () {
+          button.textContent = "通知失败";
+          window.setTimeout(function () {
+            button.textContent = oldText;
+            button.disabled = false;
+          }, 1800);
+        });
       });
     });
     document.querySelectorAll(".data-board button[data-question]").forEach(function (button) {

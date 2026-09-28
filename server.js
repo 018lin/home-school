@@ -171,6 +171,10 @@ function demoParams(multiplier) {
   for (let i = 0; i < (multiplier || 1); i++) params = params.concat(DEMO_PARENT_ACCOUNTS);
   return params;
 }
+function realParentWhere(alias) {
+  alias = alias || "u";
+  return alias + ".role = 'parent' AND " + alias + ".account NOT IN (" + demoAccountPlaceholders() + ")";
+}
 function latestQuestionnaireJoin() {
   return "LEFT JOIN questionnaires q ON q.id = (" +
     "SELECT q2.id FROM questionnaires q2 WHERE q2.child_id = c.id ORDER BY q2.id DESC LIMIT 1" +
@@ -1931,6 +1935,41 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, result);
   }
 
+  if (req.method === "GET" && pathname === "/api/parent/notifications") {
+    if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可查看通知" });
+    const requestedLimit = Number(query.get("limit") || 6);
+    const limit = Math.max(1, Math.min(20, Number.isFinite(requestedLimit) ? requestedLimit : 6));
+    const notifications = await db.prepare(
+      "SELECT n.id, n.type, n.title, n.content, n.read_at, n.created_at, " +
+      "u.display_name AS sender_name " +
+      "FROM notifications n LEFT JOIN users u ON u.id = n.sender_user_id " +
+      "WHERE n.recipient_user_id = ? ORDER BY n.id DESC LIMIT " + limit
+    ).all(user.id);
+    const unreadCount = await db.prepare(
+      "SELECT COUNT(*) AS n FROM notifications WHERE recipient_user_id = ? AND read_at IS NULL"
+    ).get(user.id).n;
+    return sendJson(res, 200, { notifications, unreadCount });
+  }
+
+  if (req.method === "POST" && pathname === "/api/parent/notifications/read-all") {
+    if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可标记通知" });
+    await db.prepare(
+      "UPDATE notifications SET read_at = datetime('now','localtime') WHERE recipient_user_id = ? AND read_at IS NULL"
+    ).run(user.id);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const notificationReadMatch = pathname.match(/^\/api\/parent\/notifications\/(\d+)\/read$/);
+  if (req.method === "POST" && notificationReadMatch) {
+    if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可标记通知" });
+    const notificationId = Number(notificationReadMatch[1]);
+    await db.prepare(
+      "UPDATE notifications SET read_at = datetime('now','localtime') " +
+      "WHERE id = ? AND recipient_user_id = ?"
+    ).run(notificationId, user.id);
+    return sendJson(res, 200, { ok: true });
+  }
+
   if (req.method === "POST" && pathname === "/api/parent/task-requests") {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可提交自主任务" });
     const body = await readBody(req);
@@ -2152,6 +2191,22 @@ async function handleApi(req, res, pathname, query) {
   /* ---- 教师端 ---- */
   if (user.role !== "teacher") {
     return sendJson(res, 403, { message: "仅教师账号可访问" });
+  }
+
+  if (req.method === "POST" && pathname === "/api/teacher/notifications") {
+    const body = await readBody(req);
+    const title = String(body.title || "教师通知").trim().slice(0, 80);
+    const content = String(body.content || "").trim().slice(0, 1200);
+    if (!content) return sendJson(res, 400, { message: "请填写通知内容" });
+    const parents = await db.prepare(
+      "SELECT id FROM users WHERE " + realParentWhere("users") + " ORDER BY id"
+    ).all(...demoParams(1));
+    for (const parent of parents) {
+      await db.prepare(
+        "INSERT INTO notifications (recipient_user_id, sender_user_id, type, title, content) VALUES (?,?,?,?,?)"
+      ).run(parent.id, user.id, "announcement", title, content);
+    }
+    return sendJson(res, 200, { ok: true, recipientCount: parents.length });
   }
 
   if (req.method === "POST" && pathname === "/api/teacher/ai-chat") {

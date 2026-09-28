@@ -343,6 +343,20 @@
       <span class="status-tag" id="taskStatusTag" style="display:none"></span>
     </div>
 
+    <section class="notification-bar" id="notificationBar" aria-labelledby="notificationTitle">
+      <div class="notification-bar-head">
+        <div class="notification-heading">
+          <span class="notification-mark" aria-hidden="true">通</span>
+          <div>
+            <h2 id="notificationTitle">教师通知</h2>
+            <p id="notificationSummary">正在读取最新通知</p>
+          </div>
+        </div>
+        <button class="notification-read-all" id="markNotificationsRead" type="button" style="display:none">全部标记已读</button>
+      </div>
+      <div class="notification-list" id="notificationList"></div>
+    </section>
+
     <div class="bind-bar" id="bindBar" style="display:none">
       <span>还没有绑定孩子，绑定后才能接收每周亲子任务。</span>
       <button id="bindBtn" type="button">去绑定</button>
@@ -527,6 +541,63 @@
         document.getElementById("fitMessage").textContent = choice ? "已记录你的评价。" : "";
       }
 
+      function formatNotificationTime(value) {
+        var raw = String(value || "").replace(" ", "T");
+        var date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return "";
+        var now = new Date();
+        var sameDay = date.getFullYear() === now.getFullYear() &&
+          date.getMonth() === now.getMonth() &&
+          date.getDate() === now.getDate();
+        return sameDay
+          ? String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0")
+          : (date.getMonth() + 1) + "月" + date.getDate() + "日 " +
+            String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
+      }
+
+      function renderNotifications(data) {
+        var notifications = data.notifications || [];
+        var unreadCount = Number(data.unreadCount || 0);
+        var list = document.getElementById("notificationList");
+        var summary = document.getElementById("notificationSummary");
+        var readAll = document.getElementById("markNotificationsRead");
+        summary.textContent = unreadCount
+          ? "有 " + unreadCount + " 条未读通知，点击通知可标记为已读"
+          : (notifications.length ? "最近通知已读完" : "暂无新的班级通知");
+        readAll.style.display = unreadCount ? "inline-flex" : "none";
+        if (!notifications.length) {
+          list.innerHTML = '<div class="notification-empty">老师发布的班级通知会显示在这里。</div>';
+          return;
+        }
+        list.innerHTML = notifications.map(function (item) {
+          var unread = !item.read_at;
+          return '<article class="notification-item' + (unread ? " unread" : "") +
+            '" data-notification-id="' + esc(item.id) + '" role="button" tabindex="0">' +
+            '<div class="notification-item-top"><div><span class="notification-item-label">' +
+            esc(item.title || "教师通知") + '</span>' +
+            (unread ? '<span class="notification-unread">未读</span>' : "") +
+            '</div><time>' + esc(formatNotificationTime(item.created_at)) + '</time></div>' +
+            '<p>' + esc(item.content || "") + '</p><div class="notification-sender">' +
+            esc(item.sender_name || "老师") + '</div></article>';
+        }).join("");
+      }
+
+      function loadNotifications() {
+        return api("/api/parent/notifications?limit=6").then(function (data) {
+          renderNotifications(data || {});
+        }).catch(function () {
+          document.getElementById("notificationSummary").textContent = "通知暂时无法加载，请稍后刷新";
+          document.getElementById("notificationList").innerHTML =
+            '<div class="notification-empty">网络异常，暂时无法读取通知。</div>';
+        });
+      }
+
+      function markNotificationRead(id) {
+        return api("/api/parent/notifications/" + encodeURIComponent(id) + "/read", {
+          method: "POST"
+        }).then(loadNotifications);
+      }
+
       function renderChildren(data) {
         var children = data.children || [];
         var switcher = document.getElementById("childSwitcher");
@@ -658,6 +729,28 @@
         trackEvent("task_fit_feedback", { childId: currentChildId, taskId: currentTaskId, meta: { choice: choice } });
       });
 
+      document.getElementById("notificationList").addEventListener("click", function (e) {
+        var item = e.target.closest(".notification-item.unread");
+        if (!item) return;
+        markNotificationRead(item.getAttribute("data-notification-id"));
+      });
+
+      document.getElementById("notificationList").addEventListener("keydown", function (e) {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        var item = e.target.closest(".notification-item.unread");
+        if (!item) return;
+        e.preventDefault();
+        markNotificationRead(item.getAttribute("data-notification-id"));
+      });
+
+      document.getElementById("markNotificationsRead").addEventListener("click", function () {
+        var button = this;
+        button.disabled = true;
+        api("/api/parent/notifications/read-all", { method: "POST" }).then(loadNotifications).finally(function () {
+          button.disabled = false;
+        });
+      });
+
       document.querySelectorAll(".type-tab").forEach(function (tab) {
         tab.addEventListener("click", function () {
           formInteracted = true;
@@ -765,6 +858,7 @@
         }).catch(function () { errEl.textContent = "网络异常，请稍后再试"; });
       });
 
+      loadNotifications();
       loadHome(getSelectedChildId());
     })();
   </script>
