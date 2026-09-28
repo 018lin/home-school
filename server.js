@@ -1740,29 +1740,28 @@ async function seed() {
     extraChildIds[es.name] = cid;
   }
 
-  // ===== 本周班级任务 =====
+  // 旧版本会把本周演示任务当成已发布任务，导致新家长注册后直接看到
+  // “亲子共读：共读一本好书”。清理这条仅由旧种子数据创建的任务，
+  // 让本周任务只来自教师真实发布。
   var thisWeek = mondayOf(new Date());
-  var weekTaskExist = await db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id IS NULL").get(thisWeek);
-  var weekTaskId;
-  if (weekTaskExist) {
-    weekTaskId = weekTaskExist.id;
-  } else {
-    weekTaskId = await db.prepare(
-      "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by) VALUES (?,?,?,?,?,?,?,?,?)"
-    ).run(
-      "亲子共读：共读一本好书", "营造家庭阅读氛围，培养孩子表达与思考能力",
-      "1. 和孩子一起选一本想读的书\n2. 安静共读 20 分钟\n3. 分享各自最喜欢的段落\n4. 讨论故事中的道理",
-      "「你觉得这个故事里，如果你是主角会怎么做？」", "拍照或写一段读后感",
-      20, "阅读", thisWeek, teacherId
-    ).lastInsertRowid;
-  }
-
-  // 小红已提交（待点评）
-  var subExist1 = await db.prepare("SELECT id FROM submissions WHERE task_id = ? AND child_id = ?").get(weekTaskId, extraChildIds["小红"]);
-  if (!subExist1) {
-    var subId2 = await db.prepare(
-      "INSERT INTO submissions (task_id, child_id, content, sub_type) VALUES (?,?,?,?)"
-    ).run(weekTaskId, extraChildIds["小红"], "和小红一起读了《猜猜我有多爱你》，她特别喜欢里面比较谁更爱谁的情节，还画了一幅画。", "text").lastInsertRowid;
+  var legacyWeekTask = teacherId ? await db.prepare(
+    "SELECT t.id FROM tasks t WHERE t.week_start = ? AND t.child_id IS NULL AND t.published_by = ? " +
+    "AND t.title = ? AND t.goal = ? AND t.duration = ? AND t.task_type = ? " +
+    "AND EXISTS (SELECT 1 FROM submissions s WHERE s.task_id = t.id AND s.child_id = ? AND " +
+      "s.content = ? AND s.sub_type = 'text')"
+  ).get(
+    thisWeek, teacherId, "亲子共读：共读一本好书", "营造家庭阅读氛围，培养孩子表达与思考能力",
+    20, "阅读", extraChildIds["小红"],
+    "和小红一起读了《猜猜我有多爱你》，她特别喜欢里面比较谁更爱谁的情节，还画了一幅画。"
+  ) : null;
+  if (legacyWeekTask) {
+    await db.prepare(
+      "DELETE FROM feedback WHERE submission_id IN (SELECT id FROM submissions WHERE task_id = ?)"
+    ).run(legacyWeekTask.id);
+    await db.prepare("DELETE FROM submissions WHERE task_id = ?").run(legacyWeekTask.id);
+    await db.prepare("DELETE FROM events WHERE task_id = ?").run(legacyWeekTask.id);
+    await db.prepare("DELETE FROM parent_task_requests WHERE task_id = ?").run(legacyWeekTask.id);
+    await db.prepare("DELETE FROM tasks WHERE id = ?").run(legacyWeekTask.id);
   }
 
   // 给小刚发布一个个性化任务（祖辈带养适配）
