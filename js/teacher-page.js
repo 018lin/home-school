@@ -43,8 +43,7 @@
     var title = formula ? ' title="' + esc(formula) + '"' : "";
     return '<' + tag + ' class="stat-card' + (href ? " is-clickable" : "") + (tone ? " " + tone : "") + '"' +
       attrs + title + '><div class="stat-card-top"><div class="stat-value">' + esc(value) +
-      '</div>' + (formula ? '<span class="metric-help" aria-label="指标说明">?</span>' : '') +
-      '</div><div class="stat-label">' + esc(label) + '</div>' +
+      '</div></div><div class="stat-label">' + esc(label) + '</div>' +
       (meta ? '<div class="stat-meta">' + esc(meta) + '</div>' : '') + '</' + tag + '>';
   }
 
@@ -80,8 +79,7 @@
 
   function badgeTip(label, value, tone, formula) {
     return '<span class="insight-badge ' + (tone || "") + '"' + (formula ? ' title="' + esc(formula) + '"' : '') +
-      '><span>' + esc(label) + '</span><b>' + esc(value) + '</b>' +
-      (formula ? '<i class="metric-help" aria-label="指标说明">?</i>' : '') + '</span>';
+      '><span>' + esc(label) + '</span><b>' + esc(value) + '</b></span>';
   }
 
   function percent(part, total) {
@@ -107,15 +105,6 @@
       if (dim.key === "behaviorSignals") found = dim;
     });
     return found;
-  }
-
-  function scopeText(report) {
-    var scope = (report && report.dataScope) || {};
-    var total = scope.realStudents != null ? scope.realStudents : (((report || {}).stats || {}).totalStudents || 0);
-    var excluded = scope.filteredDemoStudents || 0;
-    var text = "基于已激活档案的 " + total + " 名学生";
-    if (excluded > 0) text += "，排除 " + excluded + " 名未入库或演示学生";
-    return text + "；顶部指标与下方分析使用同一统计分母。";
   }
 
   function copyTemplate(text) {
@@ -449,7 +438,7 @@
     dims = dims || [];
     if (!dims.length) return "";
     return '<section class="data-board"><div class="board-head"><div><div class="eyebrow">详细学情与数据档案</div>' +
-      '<h2>班级学情与档案综合分析</h2></div></div><div class="scope-note">' + esc(scopeText(report)) + '</div><div class="data-tabs" role="tablist">' +
+      '<h2>班级学情与档案综合分析</h2></div></div><div class="data-tabs" role="tablist">' +
       dims.map(function (dim, index) {
         return '<button type="button" class="data-tab' + (index === 0 ? " active" : "") +
           '" data-data-tab="' + esc(dim.key) + '">' + esc(dimensionLabel(dim.key)) + '</button>';
@@ -883,10 +872,6 @@
     if (report.aiError) {
       notices += '<div class="warn-note">AI 调用未完成：' + esc(report.aiError) +
         '。当前展示本地规则分析结果。</div>';
-    }
-    if ((scope.filteredDemoStudents || 0) > 0) {
-      notices += '<div class="warn-note">已排除 ' + esc(scope.filteredDemoStudents) +
-        ' 条演示学生数据，当前报告仅使用真实家长账号产生的数据。</div>';
     }
     var scopeNotice = "";
     if ((scope.realStudents || 0) === 0 && (scope.filteredDemoStudents || 0) > 0) {
