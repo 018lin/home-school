@@ -372,7 +372,7 @@ async function generateDeepSeekReport(report) {
       messages: messages,
       stream: false,
       temperature: 0.2,
-      max_tokens: 2200
+      max_tokens: 5000
     })
   });
   if (!response.ok) {
@@ -387,6 +387,18 @@ async function generateDeepSeekReport(report) {
 
 function getZhipuApiKey() {
   return process.env.ZHIPU_API_KEY || process.env.BIGMODEL_API_KEY || "";
+}
+
+function getDeepSeekApiKey() {
+  return process.env.DEEPSEEK_API_KEY || "";
+}
+
+function getDeepSeekModel() {
+  return process.env.DEEPSEEK_MODEL || "deepseek-chat";
+}
+
+function getDeepSeekEndpoint() {
+  return process.env.DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
 }
 
 function getZhipuEmbeddingModel() {
@@ -514,6 +526,108 @@ async function requestZhipuChatStream(messages, options, onDelta) {
   return fullText;
 }
 
+async function requestDeepSeekChat(messages, options) {
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) return "";
+  options = options || {};
+  const response = await fetch(getDeepSeekEndpoint(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + apiKey
+    },
+    body: JSON.stringify({
+      model: options.model || getDeepSeekModel(),
+      messages: messages,
+      stream: false,
+      temperature: options.temperature == null ? 0.2 : options.temperature,
+      max_tokens: options.maxTokens || 1200
+    })
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(function () { return ""; });
+    throw new Error("DeepSeek Chat API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
+  }
+  const data = await response.json();
+  return data && data.choices && data.choices[0] && data.choices[0].message
+    ? String(data.choices[0].message.content || "") : "";
+}
+
+async function requestDeepSeekChatStream(messages, options, onDelta) {
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) return "";
+  options = options || {};
+  const response = await fetch(getDeepSeekEndpoint(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + apiKey
+    },
+    body: JSON.stringify({
+      model: options.model || getDeepSeekModel(),
+      messages: messages,
+      stream: true,
+      temperature: options.temperature == null ? 0.2 : options.temperature,
+      max_tokens: options.maxTokens || 1200
+    })
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(function () { return ""; });
+    throw new Error("DeepSeek Chat API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let fullText = "";
+
+  async function handleBlock(block) {
+    const lines = block.split(/\r?\n/).filter(function (line) { return line.startsWith("data:"); });
+    if (!lines.length) return;
+    const dataText = lines.map(function (line) { return line.slice(5).trimStart(); }).join("\n");
+    if (!dataText || dataText === "[DONE]") return;
+    let payload = null;
+    try { payload = JSON.parse(dataText); } catch (e) { return; }
+    const choice = payload && payload.choices && payload.choices[0];
+    const delta = choice && choice.delta ? choice.delta : null;
+    const message = choice && choice.message ? choice.message : null;
+    const content = (delta && delta.content != null) ? delta.content : (message && message.content != null ? message.content : "");
+    if (!content) return;
+    fullText += content;
+    if (onDelta) await onDelta(content);
+  }
+
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || "";
+    for (const block of blocks) await handleBlock(block);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) await handleBlock(buffer);
+  return fullText;
+}
+
+function getInteractionApiKey() {
+  return getDeepSeekApiKey() || getZhipuApiKey();
+}
+
+function getInteractionProvider() {
+  return getDeepSeekApiKey() ? "DeepSeek AI" : (getZhipuApiKey() ? "智谱 AI" : "本地检索");
+}
+
+async function requestInteractionChat(messages, options) {
+  if (getDeepSeekApiKey()) return requestDeepSeekChat(messages, options);
+  return requestZhipuChat(messages, options);
+}
+
+async function requestInteractionChatStream(messages, options, onDelta) {
+  if (getDeepSeekApiKey()) return requestDeepSeekChatStream(messages, options, onDelta);
+  return requestZhipuChatStream(messages, options, onDelta);
+}
+
 function parseJsonField(value) {
   try { return JSON.parse(value || "{}") || {}; } catch (e) { return {}; }
 }
@@ -585,7 +699,7 @@ function normalizeStudentAiSuggestion(raw, fallback, answers, student) {
 }
 
 async function generateStudentAiSuggestion(student, answers, history, behavior, fallback) {
-  if (!getZhipuApiKey()) return fallback;
+  if (!getInteractionApiKey()) return fallback;
   const profile = {
     grade: student.grade || "未填写",
     gender: student.gender || "未填写",
@@ -624,7 +738,7 @@ async function generateStudentAiSuggestion(student, answers, history, behavior, 
     }
   ];
   try {
-    const content = await requestZhipuChat(messages, { maxTokens: 1000, temperature: 0.25 });
+    const content = await requestInteractionChat(messages, { maxTokens: 1000, temperature: 0.25 });
     return normalizeStudentAiSuggestion(pickJsonObject(content), fallback, answers, student);
   } catch (e) {
     console.warn("学生 AI 任务建议生成失败，将使用本地规则兜底：", e.message);
@@ -1249,13 +1363,13 @@ async function buildTeacherAiReportPayload(report) {
   } catch (e) {
     payload.aiError = "向量索引更新失败，已使用本地规则分析";
   }
-  if (getZhipuApiKey() || process.env.DEEPSEEK_API_KEY) {
+  if (getInteractionApiKey()) {
     try {
-      const ai = getZhipuApiKey()
-        ? await generateZhipuReport(payload)
-        : await generateDeepSeekReport(payload);
+      const ai = getDeepSeekApiKey()
+        ? await generateDeepSeekReport(payload)
+        : await generateZhipuReport(payload);
       if (ai) {
-        payload.source = getZhipuApiKey() ? "智谱 AI" : "DeepSeek AI";
+        payload.source = getDeepSeekApiKey() ? "DeepSeek AI" : "智谱 AI";
         payload.ai = ai;
         payload.aiGeneratedAt = new Date().toISOString();
         if (Array.isArray(ai.dimensions)) {
@@ -1318,13 +1432,13 @@ function buildTeacherChatMessages(question, history, docs) {
 }
 
 async function generateTeacherChatAnswer(question, history, docs) {
-  if (!getZhipuApiKey()) return "";
-  return requestZhipuChat(buildTeacherChatMessages(question, history, docs), { maxTokens: 1000, temperature: 0.3 });
+  if (!getInteractionApiKey()) return "";
+  return requestInteractionChat(buildTeacherChatMessages(question, history, docs), { maxTokens: 1000, temperature: 0.3 });
 }
 
 async function generateTeacherChatAnswerStream(question, history, docs, onDelta) {
-  if (!getZhipuApiKey()) return "";
-  return requestZhipuChatStream(buildTeacherChatMessages(question, history, docs), { maxTokens: 1000, temperature: 0.3 }, onDelta);
+  if (!getInteractionApiKey()) return "";
+  return requestInteractionChatStream(buildTeacherChatMessages(question, history, docs), { maxTokens: 1000, temperature: 0.3 }, onDelta);
 }
 
 function answerTeacherMetaQuestion(question) {
@@ -2093,7 +2207,7 @@ async function handleApi(req, res, pathname, query) {
       sendSseHeaders(res);
       let streamedAnswer = "";
       try {
-        if (getZhipuApiKey() && matches.length) {
+        if (getInteractionApiKey() && matches.length) {
           answer = await generateTeacherChatAnswerStream(question, body.history, matches, async function (content) {
             streamedAnswer += content;
             writeSse(res, "delta", { content: content });
@@ -2111,7 +2225,7 @@ async function handleApi(req, res, pathname, query) {
           await streamPlainText(res, answer);
         }
       } catch (e) {
-        aiError = e.message || "智谱 AI 调用失败";
+        aiError = e.message || "AI 调用失败";
         answer = streamedAnswer;
         if (!answer) {
           answer = matches.length
@@ -2127,18 +2241,18 @@ async function handleApi(req, res, pathname, query) {
       }
       writeSse(res, "done", {
         sources: sources,
-        provider: getZhipuApiKey() && !aiError ? "智谱 AI + 本地向量检索" : "本地检索",
+        provider: getInteractionApiKey() && !aiError ? getInteractionProvider() + " + 本地向量检索" : "本地检索",
         indexedDocuments: indexInfo.documentCount,
         embeddedDocuments: indexInfo.embeddedCount,
         aiError: aiError || undefined
       });
       return res.end();
     }
-    if (getZhipuApiKey() && matches.length) {
+    if (getInteractionApiKey() && matches.length) {
       try {
         answer = await generateTeacherChatAnswer(question, body.history, matches);
       } catch (e) {
-        aiError = e.message || "智谱 AI 调用失败";
+        aiError = e.message || "AI 调用失败";
       }
     }
     if (!answer) {
@@ -2154,7 +2268,7 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, {
       answer: answer,
       sources: sources,
-      provider: getZhipuApiKey() && !aiError ? "智谱 AI + 本地向量检索" : "本地检索",
+      provider: getInteractionApiKey() && !aiError ? getInteractionProvider() + " + 本地向量检索" : "本地检索",
       indexedDocuments: indexInfo.documentCount,
       embeddedDocuments: indexInfo.embeddedCount,
       aiError: aiError || undefined
