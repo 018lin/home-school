@@ -99,6 +99,34 @@
     return ranges[label] || label || "暂无";
   }
 
+  function formatDateLabel(value) {
+    var date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return "刚刚";
+    return (date.getMonth() + 1) + "月" + date.getDate() + "日 " +
+      String(date.getHours()).padStart(2, "0") + ":" +
+      String(date.getMinutes()).padStart(2, "0");
+  }
+
+  function formatWeekLabel(value) {
+    if (!value) return "本周";
+    var parts = String(value).split("-");
+    if (parts.length !== 3) return "本周";
+    return parts[1].replace(/^0/, "") + "月" + parts[2].replace(/^0/, "") + "日起";
+  }
+
+  function renderReportContext(report) {
+    var stats = (report && report.stats) || {};
+    var total = stats.totalStudents || 0;
+    return '<section class="report-context"><div class="report-context-copy">' +
+      '<div class="report-kicker">教师工作台 / 班级数据</div>' +
+      '<h1>全局报告</h1><p>先看班级进度，再进入档案与行为分析，快速确定今天最值得跟进的家庭。</p>' +
+      '</div><div class="report-context-meta">' +
+      '<div><span>统计对象</span><b>' + total + ' 名已激活学生</b></div>' +
+      '<div><span>本周任务</span><b>' + formatWeekLabel(stats.weekStart) + '</b></div>' +
+      '<div><span>数据更新</span><b>' + formatDateLabel(report && report.generatedAt) + '</b></div>' +
+      '</div></section>';
+  }
+
   function behaviorDim(report) {
     var found = null;
     (report.dimensions || []).forEach(function (dim) {
@@ -109,7 +137,7 @@
 
   function copyTemplate(text) {
     return '<button type="button" class="inline-action" data-dashboard-copy="' + esc(text) + '">' +
-      esc("一键通知家长补充") + '</button>';
+      esc("复制补档通知") + '</button>';
   }
 
   function dimensionActionButtons(dim, report) {
@@ -861,13 +889,16 @@
     var completeCount = Math.round((stats.profileCompleteness || 0) * (stats.totalStudents || 0) / 100);
     var avgTextBaseline = 50;
     var avgTextMeta = "历史提交 · " + ((stats.avgTextLength || 0) >= avgTextBaseline ? "达到50字基准" : "低于50字基准");
-    var statHtml = '<section class="stat-grid">' +
+    var statHtml = '<section class="metrics-section"><div class="section-heading"><div>' +
+      '<span class="section-heading-kicker">班级概况</span><h2>关键指标</h2></div>' +
+      '<span class="section-heading-note">本周任务 · 近30天行为 · 历史提交</span></div><div class="stat-grid">' +
       stat("学生总数", stats.totalStudents || 0, "已激活档案", "已激活、非演示学生数量", "teacher-students.html", "") +
-      stat("档案完整度", (stats.profileCompleteness || 0) + "%", "完整 " + completeCount + " / " + (stats.totalStudents || 0), "完整档案数 / 已激活学生数", "teacher-students.html#filter=incomplete", (stats.profileCompleteness || 0) < 70 ? "warn" : "") +
-      stat("本周提交进度", "实交 " + progress.submittedCount + " / 应交 " + progress.totalStudents, submittedRate + "% · 点击看未提交", "本周已提交学生数 / 已激活学生数", "teacher-students.html#filter=unsubmitted", submittedRate < 70 ? "warn" : "") +
+      stat("档案完整度", (stats.profileCompleteness || 0) + "%", "完整 " + completeCount + " / " + (stats.totalStudents || 0) + " 份", "完整档案数 / 已激活学生数", "teacher-students.html#filter=incomplete", (stats.profileCompleteness || 0) < 70 ? "warn" : "") +
+      stat("本周提交进度", submittedRate + "%", progress.submittedCount + " / " + progress.totalStudents + " 人已提交", "本周已提交学生数 / 已激活学生数", "teacher-students.html#filter=unsubmitted", submittedRate < 70 ? "warn" : "") +
       stat("近30天活跃学生", behaviorActive + " / " + (stats.totalStudents || 0), "有触达或执行记录", "近30天有站内行为记录的学生数 / 已激活学生数", "teacher-students.html", "") +
-      stat("提交高峰", peakTimeText(stats.peakCompletionTime), "按历史提交时段", "提交时间按小时段聚合，占比最高的时段", "teacher-submissions.html", "") +
+      stat("提交高峰", stats.peakCompletionTime || "暂无", peakTimeText(stats.peakCompletionTime) + " · 历史提交", "提交时间按小时段聚合，占比最高的时段", "teacher-submissions.html", "") +
       stat("平均字数", (stats.avgTextLength || 0) + "字", avgTextMeta, "文字提交总字数 / 提交份数；50字为过程描述参考基准", "teacher-submissions.html", (stats.avgTextLength || 0) < avgTextBaseline ? "warn" : "") + '</section>';
+    statHtml += '</section>';
     var notices = "";
     if (report.aiError) {
       notices += '<div class="warn-note">AI 调用未完成：' + esc(report.aiError) +
@@ -879,7 +910,7 @@
         '这些记录已按规则排除。请先让家长使用真实账号注册，并绑定孩子或提交问卷；数据会在真实操作后出现在这里。</div>';
     }
     var assistantPanel = scopeNotice + createAssistantShell(report, options.aiLoading === true);
-    var dataPanel = scopeNotice + statHtml;
+    var dataPanel = scopeNotice + renderReportContext(report) + statHtml;
     var aiPanel = assistantPanel + notices;
     if ((scope.realStudents || 0) === 0) {
       dataPanel += '<p class="empty">暂无真实学生数据。请先让家长注册、填写问卷或绑定孩子后再查看数据档案。</p>';
