@@ -65,6 +65,12 @@
  padding: 0 16px; height: 38px; border: none; border-radius: 8px;
  background: var(--primary); color: #fff; font-size: 13px; cursor: pointer;
  }
+ .feedback-input-row button:disabled,
+ .quick-btn:disabled,
+ .tag-option:disabled { opacity: .62; cursor: not-allowed; }
+ .feedback-status { margin-top: 10px; min-height: 20px; font-size: 13px; color: var(--text-sub); }
+ .feedback-status.is-ok { color: var(--success); }
+ .feedback-status.is-error { color: #dc2626; }
  .empty { text-align: center; padding: 40px 0; color: #9ca3af; font-size: 14px; }
  @media (max-width: 760px) {
  .topbar { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
@@ -148,18 +154,21 @@
  if (s.feedback_count === 0) {
  h += '<div class="quick-btns">';
  QUICK_COMMENTS.forEach(function (c) {
- h += '<button class="quick-btn" data-sid="' + s.id + '" data-c="' + esc(c) + '">' + esc(c) + '</button>';
+ h += '<button type="button" class="quick-btn" data-sid="' + s.id + '" data-c="' + esc(c) + '">' + esc(c) + '</button>';
  });
  h += '</div>';
  h += '<div class="tag-picker" data-sid="' + s.id + '">';
  QUICK_TAGS.forEach(function (t) {
- h += '<button class="tag-option" data-tag="' + esc(t) + '">' + esc(t) + '</button>';
+ h += '<button type="button" class="tag-option" data-tag="' + esc(t) + '">' + esc(t) + '</button>';
  });
  h += '</div>';
  h += '<div class="feedback-input-row">';
  h += '<input type="text" placeholder="自定义评语…" maxlength="100" data-sid="' + s.id + '">';
- h += '<button data-sid="' + s.id + '">发送</button>';
+ h += '<button type="button" data-sid="' + s.id + '">发送</button>';
  h += '</div>';
+ h += '<p class="feedback-status" aria-live="polite"></p>';
+ } else {
+ h += '<p class="feedback-status is-ok">这份提交已完成点评。</p>';
  }
  h += '</div>';
  return h;
@@ -167,7 +176,7 @@
 
  list.querySelectorAll(".quick-btn").forEach(function (btn) {
  btn.addEventListener("click", function () {
- sendFeedback(Number(btn.getAttribute("data-sid")), btn.getAttribute("data-c"), getTags(btn.closest(".sub-item")));
+ sendFeedback(Number(btn.getAttribute("data-sid")), btn.getAttribute("data-c"), getTags(btn.closest(".sub-item")), btn);
  });
  });
  list.querySelectorAll(".tag-option").forEach(function (btn) {
@@ -180,7 +189,7 @@
  var input = btn.parentElement.querySelector("input");
  var val = input.value.trim();
  if (!val) return;
- sendFeedback(Number(btn.getAttribute("data-sid")), val, getTags(btn.closest(".sub-item")));
+ sendFeedback(Number(btn.getAttribute("data-sid")), val, getTags(btn.closest(".sub-item")), btn);
  });
  });
  }).catch(function (e) {
@@ -194,13 +203,41 @@
  .join(",");
  }
 
- function sendFeedback(submissionId, comment, tags) {
+ function setSubmitting(scope, submitting) {
+ Array.prototype.slice.call(scope.querySelectorAll("button, input")).forEach(function (el) {
+ el.disabled = submitting;
+ });
+ }
+
+ function setStatus(scope, text, type) {
+ var status = scope.querySelector(".feedback-status");
+ if (!status) return;
+ status.className = "feedback-status" + (type ? " is-" + type : "");
+ status.textContent = text || "";
+ }
+
+ function sendFeedback(submissionId, comment, tags, trigger) {
+ var scope = trigger ? trigger.closest(".sub-item") : null;
+ if (scope) {
+ setStatus(scope, "点评发送中…");
+ setSubmitting(scope, true);
+ }
  api("/api/teacher/feedback", {
  method: "POST",
  body: { submissionId: submissionId, comment: comment, tags: tags }
  }).then(function (res) {
- if (res.ok) load();
- }).catch(function () {});
+ if (res.ok) {
+ if (scope) setStatus(scope, "点评已保存", "ok");
+ setTimeout(load, 350);
+ return;
+ }
+ throw new Error(res.message || "点评提交失败");
+ }).catch(function (e) {
+ if (scope) {
+ setSubmitting(scope, false);
+ setStatus(scope, e && e.message ? e.message : "点评提交失败，请稍后重试", "error");
+ }
+ });
  }
 
  load();
