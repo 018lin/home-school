@@ -11,23 +11,53 @@
 var isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 window.API_BASE = window.API_BASE || (isLocalHost ? "" : "https://home-school-04zi.onrender.com");
 
+function ApiClientError(message, status, data) {
+  this.name = "ApiClientError";
+  this.message = message || "请求失败";
+  this.status = status || 0;
+  this.data = data || {};
+  if (Error.captureStackTrace) Error.captureStackTrace(this, ApiClientError);
+}
+ApiClientError.prototype = Object.create(Error.prototype);
+ApiClientError.prototype.constructor = ApiClientError;
+
 function api(path, options) {
   options = options || {};
-  var headers = options.headers || {};
+  var headers = Object.assign({}, options.headers || {});
   if (options.body) headers["Content-Type"] = "application/json";
   var auth = getAuth();
   if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  var timeoutMs = Number(options.timeoutMs) || 20000;
+  var controller = window.AbortController && !options.signal ? new AbortController() : null;
+  var timer = controller ? window.setTimeout(function () { controller.abort(); }, timeoutMs) : null;
   return fetch(API_BASE + path, {
     method: options.method || "GET",
     headers: headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    signal: options.signal || (controller && controller.signal)
   }).then(function (res) {
     if (res.status === 401) {
       localStorage.removeItem("auth");
       window.location.href = "index.html";
-      throw new Error("请先登录");
+      throw new ApiClientError("请先登录", 401, { message: "请先登录" });
     }
-    return res.json();
+    return res.text().then(function (text) {
+      var data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch (e) {
+        data = { message: text || "服务器返回格式不正确" };
+      }
+      if (!res.ok) {
+        throw new ApiClientError(data.message || "请求失败", res.status, data);
+      }
+      return data;
+    });
+  }).catch(function (error) {
+    if (error && error.name === "AbortError") {
+      throw new ApiClientError("请求超时，请稍后重试", 408, { message: "请求超时，请稍后重试" });
+    }
+    throw error;
+  }).finally(function () {
+    if (timer) window.clearTimeout(timer);
   });
 }
 

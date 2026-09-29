@@ -8,8 +8,16 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { DatabaseAdapter, initializeDatabase } = require("./database");
+const { ApiError, errorPayload } = require("./lib/errors");
+const { fetchWithRetry } = require("./lib/ai-client");
+const { createStaticServer } = require("./lib/static-server");
+const { normalizeAttachments } = require("./lib/attachments");
+const { createRequestContext } = require("./lib/request-context");
 
-const PORT = Number(process.env.PORT) || 3123;
+const configuredPort = process.env.PORT == null || process.env.PORT === ""
+  ? 3123
+  : Number(process.env.PORT);
+const PORT = Number.isFinite(configuredPort) ? configuredPort : 3123;
 const ROOT = __dirname;
 
 function loadLocalEnv(root) {
@@ -18,7 +26,7 @@ function loadLocalEnv(root) {
     if (!fs.existsSync(file)) return;
     String(fs.readFileSync(file, "utf8")).split(/\r?\n/).forEach(function (line) {
       const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-      if (!m || process.env[m[1]]) return;
+      if (!m || Object.prototype.hasOwnProperty.call(process.env, m[1])) return;
       let value = m[2].trim();
       if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
       process.env[m[1]] = value;
@@ -54,8 +62,13 @@ function lastMondayOf(d) {
 }
 
 function sendJson(res, code, obj) {
+  if (code >= 400 && obj && typeof obj === "object" && res.requestId && obj.requestId == null) {
+    obj = Object.assign({ requestId: res.requestId }, obj);
+  }
   const body = JSON.stringify(obj);
-  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
+  const headers = { "Content-Type": "application/json; charset=utf-8" };
+  if (res.requestId) headers["X-Request-Id"] = res.requestId;
+  res.writeHead(code, headers);
   res.end(body);
 }
 
@@ -88,15 +101,30 @@ async function streamPlainText(res, text) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
+    let bytes = 0;
+    let settled = false;
     req.on("data", (c) => {
+      if (settled) return;
+      bytes += Buffer.byteLength(c);
       data += c;
-      if (data.length > 6e6) { reject(new Error("body too large")); req.destroy(); }
+      if (bytes > 6e6) {
+        settled = true;
+        reject(new ApiError(413, "请求内容过大", "BODY_TOO_LARGE"));
+        req.resume();
+      }
     });
     req.on("end", () => {
+      if (settled) return;
+      settled = true;
       try { resolve(data ? JSON.parse(data) : {}); }
-      catch (e) { reject(new Error("invalid json")); }
+      catch (e) { reject(new ApiError(400, "请求格式不正确", "INVALID_JSON")); }
     });
-    req.on("error", reject);
+    req.on("error", function (error) {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    });
   });
 }
 async function getAuthUser(req) {
@@ -137,10 +165,11 @@ function cleanTags(tags) {
     .slice(0, 5)
     .join(",");
 }
-async function logEvent(user, eventType, childId, taskId, meta) {
+async function logEvent(user, eventType, childId, taskId, meta, database) {
   const type = String(eventType || "").trim().slice(0, 60);
   if (!type) return;
-  await db.prepare(
+  const store = database || db;
+  await store.prepare(
     "INSERT INTO events (user_id, child_id, task_id, event_type, meta) VALUES (?,?,?,?,?)"
   ).run(
     user ? user.id : null,
@@ -175,6 +204,9 @@ async function logParentLoginEvents(user) {
 
 const DEMO_PARENT_ACCOUNTS = ["demo"];
 const TASK_PREFERENCE_OPTIONS = ["低负担", "短时长", "高参与度", "长时长"];
+const MAX_VISIBLE_CHILDREN = 1000;
+const MAX_REPORT_ROWS = 5000;
+const MAX_BEHAVIOR_ROWS = 10000;
 function demoAccountPlaceholders() {
   return DEMO_PARENT_ACCOUNTS.map(function () { return "?"; }).join(",");
 }
@@ -206,7 +238,7 @@ async function getTeacherVisibleChildren() {
   return await db.prepare(
     "SELECT c.*, q.answers AS q_answers FROM children c " +
     latestQuestionnaireJoin() +
-    "WHERE " + realStudentWhere("c") + " ORDER BY c.id"
+    "WHERE " + realStudentWhere("c") + " ORDER BY c.id LIMIT " + MAX_VISIBLE_CHILDREN
   ).all(...demoParams(2));
 }
 
@@ -388,7 +420,7 @@ async function generateDeepSeekReport(report) {
       content: "请从学生档案、家长完成任务时间、家长上传文字素材、家长行为参与信号（埋点）四个维度生成增强分析。其中 behaviorSignals 维度来自家长在系统内的行为埋点（查看、浏览、起草、提交、发起沟通等），只能用于识别参与节奏、活跃时段和沟通时机，绝不能据此断言家长是否关心孩子。返回 JSON，格式必须为 {\"headline\":\"一句总判断\",\"summary\":\"120字以内总览\",\"dimensions\":[{\"key\":\"profiles|completionTime|textMaterials|behaviorSignals\",\"title\":\"维度标题\",\"summary\":\"一句维度判断\",\"findings\":[\"发现1\"],\"actions\":[\"建议1\"]}],\"priorities\":[{\"title\":\"优先事项\",\"reason\":\"为什么优先\",\"action\":\"教师下一步动作\",\"urgency\":\"高|中|低\"}],\"nextWeekPlan\":{\"taskTheme\":\"下周任务主题\",\"targetGroup\":\"适用对象\",\"designNotes\":[\"设计要点\"],\"fallback\":\"低负担替代方案\"},\"followUpGroups\":[{\"group\":\"分层人群\",\"signal\":\"可观察信号\",\"teacherAction\":\"建议动作\",\"tone\":\"沟通语气\"}],\"risks\":[\"需要谨慎解读的点\"]}。要求：1. 不评价家长是否关心孩子；2. 不输出学生姓名；3. 不把低样本当结论；4. 建议必须能在一周内执行；5. 若数据不足，请明确说明证据不足。\n\n数据：" + JSON.stringify(payload)
     }
   ];
-  const response = await fetch(endpoint, {
+  const response = await fetchWithRetry(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -401,7 +433,7 @@ async function generateDeepSeekReport(report) {
       temperature: 0.2,
       max_tokens: 5000
     })
-  });
+  }, { timeoutMs: Number(process.env.AI_REPORT_TIMEOUT_MS) || 45000, retries: 1 });
   if (!response.ok) {
     const text = await response.text().catch(function () { return ""; });
     throw new Error("DeepSeek API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
@@ -446,7 +478,7 @@ function getZhipuEndpoint(kind) {
 async function requestZhipuEmbeddings(texts) {
   const apiKey = getZhipuApiKey();
   if (!apiKey || !texts.length) return [];
-  const response = await fetch(getZhipuEndpoint("embedding"), {
+  const response = await fetchWithRetry(getZhipuEndpoint("embedding"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -456,7 +488,7 @@ async function requestZhipuEmbeddings(texts) {
       model: getZhipuEmbeddingModel(),
       input: texts
     })
-  });
+  }, { timeoutMs: Number(process.env.AI_EMBEDDING_TIMEOUT_MS) || 30000, retries: 1 });
   if (!response.ok) {
     const text = await response.text().catch(function () { return ""; });
     throw new Error("智谱 Embedding API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
@@ -473,7 +505,7 @@ async function requestZhipuChat(messages, options) {
   const apiKey = getZhipuApiKey();
   if (!apiKey) return "";
   options = options || {};
-  const response = await fetch(getZhipuEndpoint("chat"), {
+  const response = await fetchWithRetry(getZhipuEndpoint("chat"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -486,7 +518,7 @@ async function requestZhipuChat(messages, options) {
       temperature: options.temperature == null ? 0.2 : options.temperature,
       max_tokens: options.maxTokens || 1200
     })
-  });
+  }, { timeoutMs: Number(process.env.AI_CHAT_TIMEOUT_MS) || 45000, retries: 1 });
   if (!response.ok) {
     const text = await response.text().catch(function () { return ""; });
     throw new Error("智谱 Chat API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
@@ -500,7 +532,7 @@ async function requestZhipuChatStream(messages, options, onDelta) {
   const apiKey = getZhipuApiKey();
   if (!apiKey) return "";
   options = options || {};
-  const response = await fetch(getZhipuEndpoint("chat"), {
+  const response = await fetchWithRetry(getZhipuEndpoint("chat"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -513,7 +545,7 @@ async function requestZhipuChatStream(messages, options, onDelta) {
       temperature: options.temperature == null ? 0.2 : options.temperature,
       max_tokens: options.maxTokens || 1200
     })
-  });
+  }, { timeoutMs: Number(process.env.AI_STREAM_TIMEOUT_MS) || 90000, retries: 0 });
   if (!response.ok) {
     const text = await response.text().catch(function () { return ""; });
     throw new Error("智谱 Chat API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
@@ -557,7 +589,7 @@ async function requestDeepSeekChat(messages, options) {
   const apiKey = getDeepSeekApiKey();
   if (!apiKey) return "";
   options = options || {};
-  const response = await fetch(getDeepSeekEndpoint(), {
+  const response = await fetchWithRetry(getDeepSeekEndpoint(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -570,7 +602,7 @@ async function requestDeepSeekChat(messages, options) {
       temperature: options.temperature == null ? 0.2 : options.temperature,
       max_tokens: options.maxTokens || 1200
     })
-  });
+  }, { timeoutMs: Number(process.env.AI_CHAT_TIMEOUT_MS) || 45000, retries: 1 });
   if (!response.ok) {
     const text = await response.text().catch(function () { return ""; });
     throw new Error("DeepSeek Chat API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
@@ -584,7 +616,7 @@ async function requestDeepSeekChatStream(messages, options, onDelta) {
   const apiKey = getDeepSeekApiKey();
   if (!apiKey) return "";
   options = options || {};
-  const response = await fetch(getDeepSeekEndpoint(), {
+  const response = await fetchWithRetry(getDeepSeekEndpoint(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -597,7 +629,7 @@ async function requestDeepSeekChatStream(messages, options, onDelta) {
       temperature: options.temperature == null ? 0.2 : options.temperature,
       max_tokens: options.maxTokens || 1200
     })
-  });
+  }, { timeoutMs: Number(process.env.AI_STREAM_TIMEOUT_MS) || 90000, retries: 0 });
   if (!response.ok) {
     const text = await response.text().catch(function () { return ""; });
     throw new Error("DeepSeek Chat API " + response.status + (text ? ": " + text.slice(0, 160) : ""));
@@ -982,13 +1014,13 @@ async function buildTeacherKnowledgeDocuments() {
   const weekStart = mondayOf(new Date());
   const children = await getTeacherVisibleChildren();
   const tasks = await db.prepare(
-    "SELECT t.*, c.name AS child_name FROM tasks t LEFT JOIN children c ON c.id = t.child_id ORDER BY t.id DESC"
+    "SELECT t.*, c.name AS child_name FROM tasks t LEFT JOIN children c ON c.id = t.child_id ORDER BY t.id DESC LIMIT " + MAX_REPORT_ROWS
   ).all();
   const parentTaskRequests = await db.prepare(
     "SELECT r.*, c.name AS child_name, c.grade, u.display_name AS parent_name " +
     "FROM parent_task_requests r JOIN children c ON c.id = r.child_id " +
     "JOIN users u ON u.id = r.user_id " +
-    "WHERE " + realStudentWhere("c") + " ORDER BY r.id DESC"
+    "WHERE " + realStudentWhere("c") + " ORDER BY r.id DESC LIMIT " + MAX_REPORT_ROWS
   ).all(...demoParams(2));
   const submissions = await db.prepare(
     "SELECT s.*, c.name AS child_name, c.grade, c.caregiver, c.interests, " +
@@ -996,7 +1028,7 @@ async function buildTeacherKnowledgeDocuments() {
     "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count, " +
     "(SELECT f.comment FROM feedback f WHERE f.submission_id = s.id ORDER BY f.id DESC LIMIT 1) AS feedback_comment " +
     "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
-    "WHERE s.status = 'submitted' AND " + realStudentWhere("c") + " ORDER BY s.id DESC"
+    "WHERE s.status = 'submitted' AND " + realStudentWhere("c") + " ORDER BY s.id DESC LIMIT " + MAX_REPORT_ROWS
   ).all(...demoParams(2));
 
   const currentSubmissions = submissions.filter(function (row) {
@@ -1897,14 +1929,25 @@ async function handleApi(req, res, pathname, query) {
     if (account.length < 3) return sendJson(res, 400, { message: "账号至少 3 个字符" });
     if (password.length < 6) return sendJson(res, 400, { message: "密码至少 6 位" });
     if (!displayName) return sendJson(res, 400, { message: "请填写称呼" });
-    if (await db.prepare("SELECT id FROM users WHERE account = ?").get(account)) {
-      return sendJson(res, 409, { message: "该账号已被注册" });
+    try {
+      const result = await db.transaction(async function (tx) {
+        if (await tx.prepare("SELECT id FROM users WHERE account = ?").get(account)) {
+          throw new ApiError(409, "该账号已被注册", "ACCOUNT_EXISTS");
+        }
+        const userId = await tx.prepare(
+          "INSERT INTO users (account, password_hash, display_name, role) VALUES (?,?,?, 'parent')"
+        ).run(account, hashPassword(password), displayName).lastInsertRowid;
+        const token = crypto.randomBytes(24).toString("hex");
+        await tx.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)").run(token, userId);
+        return { token: token, userId: userId };
+      });
+      return sendJson(res, 200, { token: result.token, user: { account, displayName, role: "parent" } });
+    } catch (error) {
+      if (error && error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+        return sendJson(res, 409, { message: "该账号已被注册", errorCode: "ACCOUNT_EXISTS" });
+      }
+      throw error;
     }
-    const userId = await db.prepare(
-      "INSERT INTO users (account, password_hash, display_name, role) VALUES (?,?,?, 'parent')"
-    ).run(account, hashPassword(password), displayName).lastInsertRowid;
-    const token = await createSession(userId);
-    return sendJson(res, 200, { token, user: { account, displayName, role: "parent" } });
   }
 
   /* ---- 登录 ---- */
@@ -1953,8 +1996,11 @@ async function handleApi(req, res, pathname, query) {
     const name = String(body.name || "").trim();
     const grade = String(body.grade || "").trim();
     if (!name) return sendJson(res, 400, { message: "请填写孩子姓名/昵称" });
-    const childId = await db.prepare("INSERT INTO children (name, grade) VALUES (?,?)").run(name, grade).lastInsertRowid;
-    await db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, childId);
+    const childId = await db.transaction(async function (tx) {
+      const id = await tx.prepare("INSERT INTO children (name, grade) VALUES (?,?)").run(name, grade).lastInsertRowid;
+      await tx.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, id);
+      return id;
+    });
     const child = await db.prepare("SELECT * FROM children WHERE id = ?").get(childId);
     return sendJson(res, 200, { child });
   }
@@ -2085,11 +2131,19 @@ async function handleApi(req, res, pathname, query) {
     const duration = Math.max(5, Math.min(90, Number(body.duration) || 20));
     if (description.length < 4) return sendJson(res, 400, { message: "请至少写 4 个字说明想和孩子做什么" });
     if (description.length > 1200) return sendJson(res, 400, { message: "内容过长，请控制在 1200 字以内" });
-    const id = await db.prepare(
-      "INSERT INTO parent_task_requests (user_id, child_id, title, description, goal, duration) VALUES (?,?,?,?,?,?)"
-    ).run(user.id, childId, title, description, goal, duration).lastInsertRowid;
-    await logEvent(user, "parent_task_request_submitted", childId, null, { requestId: id });
-    const vector = await upsertParentTaskRequestVector(id);
+    const id = await db.transaction(async function (tx) {
+      const requestId = await tx.prepare(
+        "INSERT INTO parent_task_requests (user_id, child_id, title, description, goal, duration) VALUES (?,?,?,?,?,?)"
+      ).run(user.id, childId, title, description, goal, duration).lastInsertRowid;
+      await logEvent(user, "parent_task_request_submitted", childId, null, { requestId: requestId }, tx);
+      return requestId;
+    });
+    let vector = null;
+    try {
+      vector = await upsertParentTaskRequestVector(id);
+    } catch (error) {
+      console.warn("家长定制任务索引失败：", error.message);
+    }
     const request = await db.prepare(
       "SELECT id, title, description, goal, duration, status, teacher_comment, task_id, created_at, reviewed_at " +
       "FROM parent_task_requests WHERE id = ?"
@@ -2125,13 +2179,16 @@ async function handleApi(req, res, pathname, query) {
     if (!TASK_PREFERENCE_OPTIONS.includes(taskPreference)) return sendJson(res, 400, { message: "请选择希望共同完成的任务类型偏好" });
 
     // 问卷完成即创建孩子档案并绑定
-    const childId = await db.prepare(
-      "INSERT INTO children (name, grade, gender, age, caregiver, interests, family_note) VALUES (?,?,?,?,?,?,?)"
-    ).run(name, grade, gender, age, caregiver, interests, familyNote).lastInsertRowid;
-    await db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, childId);
-    await db.prepare(
-      "INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)"
-    ).run(user.id, childId, JSON.stringify({ timeAvailable, taskPreference, familyNote, interests }));
+    const childId = await db.transaction(async function (tx) {
+      const id = await tx.prepare(
+        "INSERT INTO children (name, grade, gender, age, caregiver, interests, family_note) VALUES (?,?,?,?,?,?,?)"
+      ).run(name, grade, gender, age, caregiver, interests, familyNote).lastInsertRowid;
+      await tx.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id) VALUES (?,?)").run(user.id, id);
+      await tx.prepare(
+        "INSERT INTO questionnaires (user_id, child_id, answers) VALUES (?,?,?)"
+      ).run(user.id, id, JSON.stringify({ timeAvailable, taskPreference, familyNote, interests }));
+      return id;
+    });
     let vectorIndexed = false;
     try {
       const vectorInfo = await syncTeacherVectorIndex();
@@ -2150,14 +2207,16 @@ async function handleApi(req, res, pathname, query) {
     const content = String(body.content || "").trim();
     const subType = ["text", "check", "image", "audio", "video"].includes(body.subType) ? body.subType : "text";
     const status = body.status === "draft" ? "draft" : "submitted";
-    const attachments = Array.isArray(body.attachments)
-      ? JSON.stringify(body.attachments.slice(0, 6).map((a) => ({
-          name: String(a.name || "").slice(0, 80),
-          type: String(a.type || "").slice(0, 40),
-          size: Number(a.size) || 0,
-          url: String(a.url || "").slice(0, 1500000)
-        })))
-      : "[]";
+    let attachmentResult;
+    try {
+      attachmentResult = normalizeAttachments(body.attachments);
+    } catch (error) {
+      return sendJson(res, 400, { message: error.message, errorCode: "INVALID_ATTACHMENT" });
+    }
+    if (attachmentResult.error) {
+      return sendJson(res, 400, { message: attachmentResult.error, errorCode: "INVALID_ATTACHMENT" });
+    }
+    const attachments = attachmentResult.value;
     if (!taskId || !childId) return sendJson(res, 400, { message: "缺少任务或孩子信息" });
     if (status === "submitted" && !content) return sendJson(res, 400, { message: "请填写提交内容" });
     if (!(await canAccessChild(user, childId))) return sendJson(res, 403, { message: "尚未绑定该孩子" });
@@ -2171,43 +2230,58 @@ async function handleApi(req, res, pathname, query) {
       const t = String((a && a.type) || "").split("/")[0];
       if (t && attachmentTypes.indexOf(t) < 0) attachmentTypes.push(t);
     });
-    const priorDraftCount = await db.prepare(
-      "SELECT COUNT(*) AS n FROM events WHERE event_type = 'submission_drafted' AND child_id = ? AND task_id = ?"
-    ).get(childId, taskId).n;
-    const eventMeta = {
-      subType: subType,
-      contentLength: content.length,
-      attachmentTypes: attachmentTypes,
-      fileCount: rawAttachments.length
-    };
-    if (status === "draft") eventMeta.round = priorDraftCount + 1;
-    else eventMeta.draftsBeforeSubmit = priorDraftCount;
     const eventType = status === "draft" ? "submission_drafted" : "submission_submitted";
+    let id;
+    try {
+      id = await db.transaction(async function (tx) {
+        const priorDraftCount = (await tx.prepare(
+          "SELECT COUNT(*) AS n FROM events WHERE event_type = 'submission_drafted' AND child_id = ? AND task_id = ?"
+        ).get(childId, taskId)).n;
+        const eventMeta = {
+          subType: subType,
+          contentLength: content.length,
+          attachmentTypes: attachmentTypes,
+          fileCount: rawAttachments.length
+        };
+        if (status === "draft") eventMeta.round = priorDraftCount + 1;
+        else eventMeta.draftsBeforeSubmit = priorDraftCount;
 
-    const existingSubmitted = await db.prepare(
-      "SELECT id FROM submissions WHERE task_id = ? AND child_id = ? AND status = 'submitted' ORDER BY id DESC LIMIT 1"
-    ).get(taskId, childId);
-    if (existingSubmitted && status === "submitted") {
-      return sendJson(res, 409, { message: "该任务已提交，请勿重复提交" });
+        if (status === "submitted" && await tx.prepare(
+          "SELECT id FROM submissions WHERE task_id = ? AND child_id = ? AND status = 'submitted' LIMIT 1"
+        ).get(taskId, childId)) {
+          throw new ApiError(409, "该任务已提交，请勿重复提交", "SUBMISSION_EXISTS");
+        }
+
+        const draft = await tx.prepare(
+          "SELECT id FROM submissions WHERE task_id = ? AND child_id = ? AND status = 'draft' ORDER BY id DESC LIMIT 1"
+        ).get(taskId, childId);
+        if (draft) {
+          await tx.prepare(
+            "UPDATE submissions SET content = ?, sub_type = ?, status = ?, attachments = ?, created_at = datetime('now','localtime') WHERE id = ?"
+          ).run(content, subType, status, attachments, draft.id);
+          await logEvent(user, eventType, childId, taskId, eventMeta, tx);
+          return draft.id;
+        }
+
+        const submissionId = await tx.prepare(
+          "INSERT INTO submissions (task_id, child_id, content, sub_type, status, attachments) VALUES (?,?,?,?,?,?)"
+        ).run(taskId, childId, content, subType, status, attachments).lastInsertRowid;
+        await logEvent(user, eventType, childId, taskId, eventMeta, tx);
+        return submissionId;
+      });
+    } catch (error) {
+      if (error && (error.code === "SUBMISSION_EXISTS" || error.code === "SQLITE_CONSTRAINT_UNIQUE" ||
+        /uq_submissions_one_submitted|duplicate key/i.test(String(error.message || "")))) {
+        return sendJson(res, 409, { message: "该任务已提交，请勿重复提交", errorCode: "SUBMISSION_EXISTS" });
+      }
+      throw error;
     }
-
-    const draft = await db.prepare(
-      "SELECT id FROM submissions WHERE task_id = ? AND child_id = ? AND status = 'draft' ORDER BY id DESC LIMIT 1"
-    ).get(taskId, childId);
-    if (draft) {
-      await db.prepare(
-        "UPDATE submissions SET content = ?, sub_type = ?, status = ?, attachments = ?, created_at = datetime('now','localtime') WHERE id = ?"
-      ).run(content, subType, status, attachments, draft.id);
-      await logEvent(user, eventType, childId, taskId, eventMeta);
-      const vector = status === "submitted" && content ? await upsertTeacherSubmissionVector(draft.id) : null;
-      return sendJson(res, 200, { id: draft.id, ok: true, status, vectorIndexed: !!(vector && vector.indexed) });
+    let vector = null;
+    try {
+      vector = status === "submitted" && content ? await upsertTeacherSubmissionVector(id) : null;
+    } catch (error) {
+      console.warn("提交文本索引失败：", error.message);
     }
-
-    const id = await db.prepare(
-      "INSERT INTO submissions (task_id, child_id, content, sub_type, status, attachments) VALUES (?,?,?,?,?,?)"
-    ).run(taskId, childId, content, subType, status, attachments).lastInsertRowid;
-    await logEvent(user, eventType, childId, taskId, eventMeta);
-    const vector = status === "submitted" && content ? await upsertTeacherSubmissionVector(id) : null;
     return sendJson(res, 200, { id, ok: true, status, vectorIndexed: !!(vector && vector.indexed) });
   }
 
@@ -2305,11 +2379,13 @@ async function handleApi(req, res, pathname, query) {
     const parents = await db.prepare(
       "SELECT id FROM users WHERE " + realParentWhere("users") + " ORDER BY id"
     ).all(...demoParams(1));
-    for (const parent of parents) {
-      await db.prepare(
-        "INSERT INTO notifications (recipient_user_id, sender_user_id, type, title, content) VALUES (?,?,?,?,?)"
-      ).run(parent.id, user.id, "announcement", title, content);
-    }
+    await db.transaction(async function (tx) {
+      for (const parent of parents) {
+        await tx.prepare(
+          "INSERT INTO notifications (recipient_user_id, sender_user_id, type, title, content) VALUES (?,?,?,?,?)"
+        ).run(parent.id, user.id, "announcement", title, content);
+      }
+    });
     return sendJson(res, 200, { ok: true, recipientCount: parents.length });
   }
 
@@ -2477,29 +2553,54 @@ async function handleApi(req, res, pathname, query) {
     const comment = String(body.teacherComment || body.comment || "").trim().slice(0, 500);
     if (decision === "rejected" && !comment) return sendJson(res, 400, { message: "拒绝时请填写评价或原因" });
     let taskId = request.task_id || null;
-    if (decision === "approved") {
-      const title = String(body.title || request.title || "家长自主定制任务").trim().slice(0, 80);
-      const goal = String(body.goal || request.goal || "结合家庭意愿开展一次亲子共育活动").trim().slice(0, 180);
-      const steps = String(body.steps || request.description || "").trim().slice(0, 3000);
-      const dialogueTips = String(body.dialogueTips || "和孩子聊聊：这件事最有意思、最困难的地方分别是什么？").trim().slice(0, 200);
-      const submitHint = String(body.submitHint || "可提交照片、文字记录或一段亲子对话").trim().slice(0, 200);
-      const duration = Math.max(5, Math.min(90, Number(body.duration) || Number(request.duration) || 20));
-      const type = String(body.type || "家务实践").trim().slice(0, 40);
-      const difficulty = ["简单", "普通", "进阶"].includes(body.difficulty) ? body.difficulty : "普通";
-      const materials = String(body.materials || "按家庭实际准备").trim().slice(0, 160);
-      const fallbackPlan = String(body.fallbackPlan || "时间有限时可缩短步骤，只保留一次共同完成和一次交流").trim().slice(0, 240);
-      taskId = await db.prepare(
-        "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by, child_id, difficulty, materials, fallback_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
-      ).run(
-        title, goal, steps, dialogueTips, submitHint, duration, type, mondayOf(new Date()), user.id,
-        request.child_id, difficulty, materials, fallbackPlan
-      ).lastInsertRowid;
-    }
+    try {
+      taskId = await db.transaction(async function (tx) {
+        const current = await tx.prepare(
+          "SELECT id, status, task_id FROM parent_task_requests WHERE id = ?"
+        ).get(requestId);
+        if (!current) throw new ApiError(404, "家长定制任务不存在", "REQUEST_NOT_FOUND");
+        if (current.status !== "pending") {
+          throw new ApiError(409, "该家长定制任务已经审核过", "REQUEST_ALREADY_REVIEWED");
+        }
 
-    await db.prepare(
-      "UPDATE parent_task_requests SET status=?, teacher_id=?, teacher_comment=?, task_id=?, reviewed_at=datetime('now','localtime') WHERE id=?"
-    ).run(decision, user.id, comment, taskId, requestId);
-    const vector = await upsertParentTaskRequestVector(requestId);
+        let createdTaskId = current.task_id || null;
+        if (decision === "approved") {
+          const title = String(body.title || request.title || "家长自主定制任务").trim().slice(0, 80);
+          const goal = String(body.goal || request.goal || "结合家庭意愿开展一次亲子共育活动").trim().slice(0, 180);
+          const steps = String(body.steps || request.description || "").trim().slice(0, 3000);
+          const dialogueTips = String(body.dialogueTips || "和孩子聊聊：这件事最有意思、最困难的地方分别是什么？").trim().slice(0, 200);
+          const submitHint = String(body.submitHint || "可提交照片、文字记录或一段亲子对话").trim().slice(0, 200);
+          const duration = Math.max(5, Math.min(90, Number(body.duration) || Number(request.duration) || 20));
+          const type = String(body.type || "家务实践").trim().slice(0, 40);
+          const difficulty = ["简单", "普通", "进阶"].includes(body.difficulty) ? body.difficulty : "普通";
+          const materials = String(body.materials || "按家庭实际准备").trim().slice(0, 160);
+          const fallbackPlan = String(body.fallbackPlan || "时间有限时可缩短步骤，只保留一次共同完成和一次交流").trim().slice(0, 240);
+          createdTaskId = await tx.prepare(
+            "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by, child_id, difficulty, materials, fallback_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+          ).run(
+            title, goal, steps, dialogueTips, submitHint, duration, type, mondayOf(new Date()), user.id,
+            request.child_id, difficulty, materials, fallbackPlan
+          ).lastInsertRowid;
+        }
+
+        const result = await tx.prepare(
+          "UPDATE parent_task_requests SET status=?, teacher_id=?, teacher_comment=?, task_id=?, reviewed_at=datetime('now','localtime') WHERE id=? AND status='pending'"
+        ).run(decision, user.id, comment, createdTaskId, requestId);
+        if (!result.changes) throw new ApiError(409, "该家长定制任务已经审核过", "REQUEST_ALREADY_REVIEWED");
+        return createdTaskId;
+      });
+    } catch (error) {
+      if (error && error.code === "REQUEST_ALREADY_REVIEWED") {
+        return sendJson(res, 409, { message: error.message, errorCode: error.code });
+      }
+      throw error;
+    }
+    let vector = null;
+    try {
+      vector = await upsertParentTaskRequestVector(requestId);
+    } catch (error) {
+      console.warn("家长定制任务审核索引失败：", error.message);
+    }
     return sendJson(res, 200, { ok: true, taskId: taskId || null, vectorIndexed: !!(vector && vector.indexed) });
   }
 
@@ -2522,7 +2623,9 @@ async function handleApi(req, res, pathname, query) {
     const localOnly = query.get("local") === "1";
     const allChildCount = await db.prepare("SELECT COUNT(*) AS n FROM children").get().n;
     const weekStart = mondayOf(new Date());
-    const allTasks = await db.prepare("SELECT id, child_id, title, task_type, week_start, created_at FROM tasks").all();
+    const allTasks = await db.prepare(
+      "SELECT id, child_id, title, task_type, week_start, created_at FROM tasks ORDER BY id DESC LIMIT " + MAX_REPORT_ROWS
+    ).all();
     const weekTasks = allTasks.filter(function (task) { return task.week_start === weekStart; });
     const children = await getTeacherVisibleChildren();
     const submissions = await db.prepare(
@@ -2531,7 +2634,7 @@ async function handleApi(req, res, pathname, query) {
       "t.task_type, t.week_start, t.created_at AS task_created_at, " +
       "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count " +
       "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
-      "WHERE s.status = 'submitted' AND " + realStudentWhere("c") + " ORDER BY s.created_at DESC"
+      "WHERE s.status = 'submitted' AND " + realStudentWhere("c") + " ORDER BY s.created_at DESC LIMIT " + MAX_REPORT_ROWS
     ).all(...demoParams(2));
     const weekSubmissions = submissions.filter(function (row) { return row.week_start === weekStart; });
     const weekSubmittedStudents = new Set(weekSubmissions.map(function (row) { return row.child_id; }));
@@ -2541,7 +2644,7 @@ async function handleApi(req, res, pathname, query) {
     const weekDraftRows = await db.prepare(
       "SELECT s.id, s.child_id, s.task_id, s.created_at, c.name AS child_name, t.title AS task_title " +
       "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
-      "WHERE s.status = 'draft' AND t.week_start = ? AND " + realStudentWhere("c") + " ORDER BY s.created_at DESC"
+      "WHERE s.status = 'draft' AND t.week_start = ? AND " + realStudentWhere("c") + " ORDER BY s.created_at DESC LIMIT " + MAX_REPORT_ROWS
     ).all(weekStart, ...demoParams(2));
 
     function parseAnswers(row) {
@@ -2702,7 +2805,7 @@ async function handleApi(req, res, pathname, query) {
     const behaviorRows = await db.prepare(
       "SELECT e.event_type, e.child_id, e.created_at, c.name AS child_name " +
       "FROM events e JOIN children c ON c.id = e.child_id " +
-      "WHERE e.created_at >= ? AND " + realStudentWhere("c") + " ORDER BY e.id DESC"
+      "WHERE e.created_at >= ? AND " + realStudentWhere("c") + " ORDER BY e.id DESC LIMIT " + MAX_BEHAVIOR_ROWS
     ).all(behaviorSinceText, ...demoParams(2));
 
     const behaviorEventCount = {};
@@ -3176,7 +3279,7 @@ async function handleApi(req, res, pathname, query) {
     const history = await db.prepare(
       "SELECT s.status, s.content, s.created_at, t.title AS task_title, t.task_type " +
       "FROM submissions s JOIN tasks t ON t.id = s.task_id " +
-      "WHERE s.child_id = ? AND s.status = 'submitted' ORDER BY s.id DESC"
+      "WHERE s.child_id = ? AND s.status = 'submitted' ORDER BY s.id DESC LIMIT 100"
     ).all(childId);
     const completedTypes = [...new Set(history.map(h => h.task_type))];
     const totalCompleted = history.length;
@@ -3188,7 +3291,7 @@ async function handleApi(req, res, pathname, query) {
       String(behaviorSince.getMonth() + 1).padStart(2, "0") + "-" +
       String(behaviorSince.getDate()).padStart(2, "0") + " 00:00:00";
     const behaviorRows = await db.prepare(
-      "SELECT event_type, created_at FROM events WHERE child_id = ? AND created_at >= ? ORDER BY created_at DESC"
+      "SELECT event_type, created_at FROM events WHERE child_id = ? AND created_at >= ? ORDER BY created_at DESC LIMIT " + MAX_BEHAVIOR_ROWS
     ).all(childId, behaviorSinceText);
     const behavior = { events: behaviorRows.length, activeDays: 0, counts: {} };
     const activeDays = new Set();
@@ -3384,28 +3487,13 @@ async function handleApi(req, res, pathname, query) {
 }
 
 /* ============ 静态文件 ============ */
-const MIME = {
-  ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
-  ".js": "application/javascript; charset=utf-8", ".json": "application/json",
-  ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon"
-};
-function serveStatic(req, res, pathname) {
-  if (pathname.split("/").some(function (part) { return part === ".env" || part.startsWith(".env."); })) {
-    res.writeHead(403);
-    return res.end("Forbidden");
-  }
-  if (pathname === "/") pathname = "/index.html";
-  const filePath = path.normalize(path.join(ROOT, pathname));
-  if (!filePath.startsWith(ROOT)) { res.writeHead(403); return res.end("Forbidden"); }
-  fs.readFile(filePath, (err, data) => {
-    if (err) { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }); return res.end("404 Not Found"); }
-    res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
-    res.end(data);
-  });
-}
+const serveStatic = createStaticServer(ROOT);
 
 /* ============ 启动 ============ */
 const server = http.createServer(async (req, res) => {
+  const context = createRequestContext(req);
+  res.requestId = context.requestId;
+  res.setHeader("X-Request-Id", res.requestId);
   /* CORS：Vercel 前端跨域调用后端接口需要（前端/后端分离部署） */
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -3425,11 +3513,23 @@ const server = http.createServer(async (req, res) => {
       serveStatic(req, res, pathname);
     }
   } catch (e) {
-    sendJson(res, 500, { message: e.message || "服务器错误" });
+    console.error("请求处理失败", res.requestId, e);
+    if (res.headersSent) return res.end();
+    const payload = errorPayload(e, res.requestId);
+    sendJson(res, Number(e && e.status) || 500, payload);
   }
 });
 
-server.listen(PORT, () => {
-  console.log("家校共育系统已启动: http://localhost:" + PORT);
-  console.log(db.isPostgres ? "数据库：Neon PostgreSQL" : "数据库：本地 SQLite");
-});
+function startServer(port) {
+  const listenPort = port == null ? PORT : port;
+  return server.listen(listenPort, () => {
+    const address = server.address();
+    const actualPort = address && typeof address === "object" ? address.port : listenPort;
+    console.log("家校共育系统已启动: http://localhost:" + actualPort);
+    console.log(db.isPostgres ? "数据库：Neon PostgreSQL" : "数据库：本地 SQLite");
+  });
+}
+
+if (require.main === module) startServer();
+
+module.exports = { server, db, databaseReady, handleApi, startServer };
