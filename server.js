@@ -793,7 +793,7 @@ function buildTeacherSubmissionDocument(row) {
     title: "提交：" + row.child_name + " · " + row.task_title,
     content: [
       "学生" + row.child_name + "提交了任务《" + row.task_title + "》。",
-      "提交时间：" + row.created_at + "；任务周：" + row.week_start + "；任务类型：" + (row.task_type || "未填写") + "。",
+      "提交时间：" + formatEventTime(row.created_at) + "；任务周：" + row.week_start + "；任务类型：" + (row.task_type || "未填写") + "。",
       "提交文本：" + content.slice(0, 4000),
       Number(row.feedback_count || 0) > 0 ? "状态：已点评。最近点评：" + (row.feedback_comment || "已完成点评") : "状态：尚未点评。",
       "陪伴人：" + (row.caregiver || "未填写") + "；兴趣：" + (row.interests || "未填写") + "。"
@@ -1759,7 +1759,7 @@ async function answerTeacherMetricQuestion(question) {
   }
   const list = pending.slice(0, 5).map(function (row, index) {
     return (index + 1) + ". " + row.child_name + "：《" + row.task_title + "》，提交于 " +
-      row.created_at + "，内容摘要：" + String(row.content || "").slice(0, 48);
+      formatEventTime(row.created_at) + "，内容摘要：" + String(row.content || "").slice(0, 48);
   }).join("\n");
   return {
     answer: "结论：本周还有 " + pending.length + " 份提交未点评，建议按提交时间先后和内容中是否有困难线索优先处理。\n\n" + list,
