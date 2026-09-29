@@ -151,6 +151,28 @@ async function logEvent(user, eventType, childId, taskId, meta) {
   );
 }
 
+async function logParentLoginEvents(user) {
+  if (!user || user.role !== "parent") return;
+  try {
+    const children = await db.prepare(
+      "SELECT DISTINCT c.id FROM children c " +
+      "WHERE EXISTS (SELECT 1 FROM bindings b WHERE b.child_id = c.id AND b.user_id = ?) " +
+      "OR EXISTS (SELECT 1 FROM questionnaires q WHERE q.child_id = c.id AND q.user_id = ?) " +
+      "ORDER BY c.id"
+    ).all(user.id, user.id);
+    const meta = { role: "parent", displayName: user.display_name || "" };
+    if (!children.length) {
+      await logEvent(user, "parent_logged_in", null, null, meta);
+      return;
+    }
+    for (const child of children) {
+      await logEvent(user, "parent_logged_in", child.id, null, meta);
+    }
+  } catch (e) {
+    console.warn("家长登录事件记录失败：", e.message);
+  }
+}
+
 const DEMO_PARENT_ACCOUNTS = ["demo"];
 const TASK_PREFERENCE_OPTIONS = ["低负担", "短时长", "高参与度", "长时长"];
 function demoAccountPlaceholders() {
@@ -205,7 +227,7 @@ async function getParentEngagement(userId, childId) {
   const activeDays = new Set();
   rows.forEach(function (row) {
     count[row.event_type] = (count[row.event_type] || 0) + 1;
-    if (["task_detail_viewed", "timeline_viewed", "feedback_card_viewed",
+    if (["parent_logged_in", "task_detail_viewed", "timeline_viewed", "feedback_card_viewed",
       "submission_drafted", "submission_submitted", "teacher_contact_started", "parent_task_request_submitted"].includes(row.event_type)) {
       activeDays.add(String(row.created_at).slice(0, 10));
     }
@@ -248,6 +270,7 @@ async function getParentEngagement(userId, childId) {
     : score >= 60 ? "high" : score >= 30 ? "medium" : "low";
 
   const evidence = [];
+  if (count.parent_logged_in) evidence.push("登录系统 " + count.parent_logged_in + " 次");
   if (count.task_detail_viewed) evidence.push("查看任务详情 " + count.task_detail_viewed + " 次");
   if (count.timeline_viewed) evidence.push("回看成长档案 " + count.timeline_viewed + " 次");
   if (count.submission_submitted) evidence.push("完成提交 " + count.submission_submitted + " 次");
@@ -927,6 +950,7 @@ async function upsertParentTaskRequestVector(requestId) {
 }
 
 const BEHAVIOR_TYPE_NAMES = {
+  parent_logged_in: "家长登录系统",
   task_card_viewed: "查看任务卡片",
   task_detail_viewed: "查看任务详情",
   feedback_card_viewed: "查看反馈卡片",
@@ -938,6 +962,21 @@ const BEHAVIOR_TYPE_NAMES = {
   page_dwell: "页面停留",
   questionnaire_viewed: "查看问卷"
 };
+
+function formatEventTime(value) {
+  if (!value) return "未知时间";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.getFullYear() + "-" +
+      String(value.getMonth() + 1).padStart(2, "0") + "-" +
+      String(value.getDate()).padStart(2, "0") + " " +
+      String(value.getHours()).padStart(2, "0") + ":" +
+      String(value.getMinutes()).padStart(2, "0") + ":" +
+      String(value.getSeconds()).padStart(2, "0");
+  }
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) return text.replace("T", " ").slice(0, 19);
+  return text.slice(0, 19) || "未知时间";
+}
 
 async function buildTeacherKnowledgeDocuments() {
   const weekStart = mondayOf(new Date());
@@ -1012,9 +1051,11 @@ async function buildTeacherKnowledgeDocuments() {
     String(behaviorSince.getMonth() + 1).padStart(2, "0") + "-" +
     String(behaviorSince.getDate()).padStart(2, "0") + " 00:00:00";
   const behaviorRows = await db.prepare(
-    "SELECT e.event_type, e.child_id, e.created_at, c.name AS child_name " +
-    "FROM events e JOIN children c ON c.id = e.child_id " +
-    "WHERE e.created_at >= ? AND " + realStudentWhere("c") + " ORDER BY e.id DESC"
+    "SELECT e.event_type, e.child_id, e.created_at, c.name AS child_name, " +
+    "u.display_name AS parent_name, " +
+    "(SELECT b.relation FROM bindings b WHERE b.user_id = e.user_id AND b.child_id = e.child_id ORDER BY b.id LIMIT 1) AS parent_relation " +
+    "FROM events e JOIN children c ON c.id = e.child_id LEFT JOIN users u ON u.id = e.user_id " +
+    "WHERE e.created_at >= ? AND " + realStudentWhere("c") + " ORDER BY e.created_at DESC, e.id DESC"
   ).all(behaviorSinceText, ...demoParams(2));
   const behaviorCount = {};
   const behaviorByChild = {};
@@ -1032,6 +1073,13 @@ async function buildTeacherKnowledgeDocuments() {
   const behaviorTypeText = Object.keys(behaviorCount).map(function (key) {
     return (BEHAVIOR_TYPE_NAMES[key] || key) + " " + behaviorCount[key] + "次";
   }).join("、") || "暂无";
+  const behaviorDetailText = behaviorRows.slice(0, 200).map(function (row, index) {
+    const parentLabel = row.parent_name ? "家长" + row.parent_name : "未知家长";
+    const relation = row.parent_relation ? "（" + row.parent_relation + "）" : "";
+    return (index + 1) + ". " + formatEventTime(row.created_at) + "｜" +
+      parentLabel + relation + "｜学生" + (row.child_name || "未知学生") + "｜" +
+      (BEHAVIOR_TYPE_NAMES[row.event_type] || row.event_type || "未知事件") + "（" + (row.event_type || "unknown") + "）";
+  }).join("\n") || "暂无近30天行为时间戳明细。";
   let behaviorTouchTotal = 0, behaviorExploreTotal = 0, behaviorFollowTotal = 0;
   const behaviorViewerOnly = [];
   const behaviorChildText = Object.keys(behaviorByChild).map(function (id) {
@@ -1065,6 +1113,22 @@ async function buildTeacherKnowledgeDocuments() {
       "这些埋点仅反映系统内可见活动（查看、浏览、起草、提交、发起沟通等），用于识别参与节奏和沟通时机，不等同于家长真实关注程度。"
     ].join("\n"),
     metadata: { weekStart: weekStart }
+  });
+
+  docs.push({
+    docKey: "behavior:timestamps",
+    docType: "behavior",
+    refId: "class",
+    title: "家长站内行为时间戳明细（近30天）",
+    content: [
+      "家长站内行为时间戳明细（近30天）。每条记录包含日期时间、事件类型、家长称呼和对应学生；可用于回答“哪个家长在什么时候登录过/查看过/提交过”。",
+      "事件类型说明：" + behaviorTypeText + "。",
+      "明细列表：",
+      behaviorDetailText,
+      behaviorRows.length > 200 ? "以上仅列出最近 200 条，完整记录仍保存在 events 表。" : "",
+      "注意：家长登录系统记录为 parent_logged_in；这些记录只能说明系统内发生过登录或操作，不能直接推断家长态度。"
+    ].filter(Boolean).join("\n"),
+    metadata: { weekStart: weekStart, windowDays: 30 }
   });
 
   for (const child of children) {
@@ -1427,7 +1491,7 @@ function buildTeacherChatMessages(question, history, docs) {
   return [
     {
       role: "system",
-      content: "你是家校共育系统的教师端 AI 助手。请只根据提供的班级资料回答，可以做明确标注为推测的合理推理。回答用中文，先给结论，再给依据和建议。不能把站内行为直接说成家长是否关心，也不要公开比较学生。若资料不足，直接说明证据不足并告诉老师还需要什么数据。涉及学生时可以使用资料中的学生姓名，但不要输出家长账号、密码或无关隐私。资料中会包含家长近30天站内行为埋点统计（查看、浏览、起草、提交、发起沟通、自主定制任务等），以及家长自主定制任务提议和教师审核结果；这些可用于回答参与节奏、任务意愿、任务设计和沟通时机类问题，但绝不能据此断言家长是否关心孩子。"
+      content: "你是家校共育系统的教师端 AI 助手。请只根据提供的班级资料回答，可以做明确标注为推测的合理推理。回答用中文，先给结论，再给依据和建议。不能把站内行为直接说成家长是否关心，也不要公开比较学生。若资料不足，直接说明证据不足并告诉老师还需要什么数据。涉及学生时可以使用资料中的学生姓名和家长称呼，但不要输出家长账号、密码或无关隐私。资料中会包含家长近30天站内行为埋点统计与时间戳明细（登录系统、查看、浏览、起草、提交、发起沟通、自主定制任务等），以及家长自主定制任务提议和教师审核结果；这些可用于回答哪个家长在什么时候登录过、参与节奏、任务意愿、任务设计和沟通时机类问题，但绝不能据此断言家长是否关心孩子。"
     },
     { role: "system", content: "检索到的班级资料：\n" + context },
     ...safeHistory,
@@ -1552,6 +1616,45 @@ function rankActiveStudents(ctx) {
   }).sort(function (a, b) {
     return b.score - a.score || b.submitted - a.submitted || b.execution - a.execution || b.views - a.views;
   });
+}
+
+async function answerTeacherParentLoginQuestion(question) {
+  const text = String(question || "");
+  const wantsLogin = /(家长.*(登录|登陆|上线|进入系统|访问系统)|登录.*家长|登陆.*家长|谁.*(登录|登陆|上线)|什么时候.*(登录|登陆)|登录记录|登陆记录)/.test(text);
+  if (!wantsLogin) return null;
+
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+  const sinceText = since.getFullYear() + "-" +
+    String(since.getMonth() + 1).padStart(2, "0") + "-" +
+    String(since.getDate()).padStart(2, "0") + " 00:00:00";
+  const rows = await db.prepare(
+    "SELECT e.created_at, c.name AS child_name, u.display_name AS parent_name, " +
+    "(SELECT b.relation FROM bindings b WHERE b.user_id = e.user_id AND b.child_id = e.child_id ORDER BY b.id LIMIT 1) AS parent_relation " +
+    "FROM events e JOIN children c ON c.id = e.child_id LEFT JOIN users u ON u.id = e.user_id " +
+    "WHERE e.event_type = 'parent_logged_in' AND e.created_at >= ? AND " + realStudentWhere("c") + " " +
+    "ORDER BY e.created_at DESC, e.id DESC LIMIT 30"
+  ).all(sinceText, ...demoParams(2));
+
+  if (!rows.length) {
+    return {
+      answer: "结论：近30天还没有可见学生对应的家长登录记录。\n\n" +
+        "说明：系统现在会在家长登录成功后写入 parent_logged_in 事件，并记录时间、家长称呼和对应学生；后续登录会出现在这里。已有的历史登录若发生在本次记录能力上线前，无法自动补回。",
+      sources: [{ title: "家长登录事件记录" }]
+    };
+  }
+
+  const list = rows.map(function (row, index) {
+    const parentLabel = row.parent_name ? row.parent_name : "未知家长";
+    const relation = row.parent_relation ? "（" + row.parent_relation + "）" : "";
+    return (index + 1) + ". " + formatEventTime(row.created_at) + "，家长" +
+      parentLabel + relation + "登录，对应学生：" + (row.child_name || "未知学生");
+  }).join("\n");
+  return {
+    answer: "结论：近30天共找到 " + rows.length + " 条最近的家长登录记录。\n\n" + list +
+      "\n\n依据：以上来自 events 表中的 parent_logged_in 事件，只说明家长账号在该时间登录过系统，不直接代表任务完成或关注程度。",
+    sources: [{ title: "家长登录时间戳明细（近30天）" }]
+  };
 }
 
 async function answerTeacherLocalActionQuestion(question) {
@@ -1814,6 +1917,7 @@ async function handleApi(req, res, pathname, query) {
       return sendJson(res, 401, { message: "账号或密码错误" });
     }
     const token = await createSession(user.id);
+    await logParentLoginEvents(user);
     return sendJson(res, 200, {
       token,
       user: { account: user.account, displayName: user.display_name, role: user.role }
@@ -2240,6 +2344,9 @@ async function handleApi(req, res, pathname, query) {
 
     const metaAnswer = answerTeacherMetaQuestion(question);
     if (metaAnswer) return sendTeacherAnswer(metaAnswer, "本地能力说明");
+
+    const loginAnswer = await answerTeacherParentLoginQuestion(question);
+    if (loginAnswer) return sendTeacherAnswer(loginAnswer, "本地登录记录");
 
     const localActionAnswer = await answerTeacherLocalActionQuestion(question);
     if (localActionAnswer) return sendTeacherAnswer(localActionAnswer, "本地规则分析");
