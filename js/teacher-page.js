@@ -608,13 +608,14 @@
 
   function createAssistantShell(report, aiLoading) {
     var source = report.source || "本地规则分析";
+    var showSource = !document.body.classList.contains("teacher-ai-page");
     var loadingText = report.aiLoadingText || (report.aiStale ? "正在更新为最新班级数据" : "正在生成 AI 洞察");
     return '<section class="assistant-shell' + (aiLoading ? " is-ai-loading" : "") + '"' +
       (aiLoading ? ' aria-busy="true"' : "") + '><div class="assistant-head"><div class="assistant-brand">' +
       '<span class="assistant-mark">✦</span><div><div class="assistant-title">AI 班级助手</div>' +
       '<div class="assistant-status">' + (aiLoading ? esc(loadingText) + "…" : "已读取学生档案、任务、提交与点评记录") +
       '</div></div></div>' +
-      '<span class="assistant-source">' + esc(source) + '</span></div>' +
+      (showSource ? '<span class="assistant-source">' + esc(source) + '</span>' : '') + '</div>' +
       '<div id="assistantMessages" class="assistant-messages"></div>' +
       '<form id="assistantForm" class="assistant-compose"><textarea id="assistantInput" class="assistant-input" rows="1" ' +
       'placeholder="询问班级学情，或输入“帮我写催交通知”…"></textarea>' +
