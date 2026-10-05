@@ -352,7 +352,10 @@
             <p id="notificationSummary">正在读取最新通知</p>
           </div>
         </div>
-        <button class="notification-read-all" id="markNotificationsRead" type="button" style="display:none">全部标记已读</button>
+        <div class="notification-actions">
+          <button class="notification-read-all" id="markNotificationsRead" type="button" style="display:none">全部标记已读</button>
+          <button class="notification-hide" id="hideNotifications" type="button" style="display:none">隐藏通知</button>
+        </div>
       </div>
       <div class="notification-list" id="notificationList"></div>
     </section>
@@ -369,7 +372,7 @@
       </div>
     </section>
 
-    <section class="task-layout" id="taskLayout" style="display:none">
+    <section class="task-layout is-hidden" id="taskLayout" style="display:none">
       <div class="stack">
         <article class="card" id="taskCard">
           <span class="task-type" id="taskType"></span>
@@ -481,6 +484,9 @@
       var mediaAttachments = [];
       var formInteracted = false;
       var savedThisSession = false;
+      var notificationLatestId = "";
+      var notificationHiddenKey = "parentNotificationBarHidden:" +
+        ((auth && auth.user && auth.user.id) || "current");
 
       function parseAttachments(value) {
         try { return JSON.parse(value || "[]") || []; }
@@ -558,13 +564,27 @@
       function renderNotifications(data) {
         var notifications = data.notifications || [];
         var unreadCount = Number(data.unreadCount || 0);
+        var notificationBar = document.getElementById("notificationBar");
         var list = document.getElementById("notificationList");
         var summary = document.getElementById("notificationSummary");
         var readAll = document.getElementById("markNotificationsRead");
+        var hideButton = document.getElementById("hideNotifications");
+        notificationLatestId = notifications.reduce(function (latest, item) {
+          return Math.max(latest, Number(item.id) || 0);
+        }, 0) || "";
+        var hiddenAtId = localStorage.getItem(notificationHiddenKey) || "";
+        if (unreadCount || (notificationLatestId && hiddenAtId !== String(notificationLatestId))) {
+          localStorage.removeItem(notificationHiddenKey);
+          hiddenAtId = "";
+        }
+        var isHidden = !!(notificationLatestId && hiddenAtId === String(notificationLatestId));
+        notificationBar.style.display = isHidden ? "none" : "";
+        hideButton.style.display = !isHidden && notifications.length && !unreadCount ? "inline-flex" : "none";
         summary.textContent = unreadCount
           ? "有 " + unreadCount + " 条未读通知，点击通知可标记为已读"
           : (notifications.length ? "最近通知已读完" : "暂无新的班级通知");
         readAll.style.display = unreadCount ? "inline-flex" : "none";
+        if (isHidden) return;
         if (!notifications.length) {
           list.innerHTML = '<div class="notification-empty">老师发布的班级通知会显示在这里。</div>';
           return;
@@ -621,7 +641,9 @@
 
       function resetTaskUi() {
         document.getElementById("emptyState").style.display = "none";
-        document.getElementById("taskLayout").style.display = "none";
+        var taskLayout = document.getElementById("taskLayout");
+        taskLayout.classList.add("is-hidden");
+        taskLayout.style.display = "none";
         document.getElementById("submitCard").style.display = "none";
         document.getElementById("submittedCard").style.display = "none";
         document.getElementById("feedbackArea").style.display = "none";
@@ -649,7 +671,9 @@
         tag.textContent = statusText[data.taskStatus] || "进行中";
         tag.className = "status-tag " + (statusClass[data.taskStatus] || "status-ongoing");
 
-        document.getElementById("taskLayout").style.display = "grid";
+        var taskLayout = document.getElementById("taskLayout");
+        taskLayout.classList.remove("is-hidden");
+        taskLayout.style.display = "grid";
         document.getElementById("taskType").textContent = data.task.task_type || "亲子任务";
         document.getElementById("taskTitle").textContent = data.task.title || "本周成长任务";
         document.getElementById("taskMeta").textContent = "约 " + (data.task.duration || 20) + " 分钟 · 截止周日";
@@ -703,6 +727,7 @@
           if (data.selectedChildInvalid) localStorage.removeItem("selectedChildId");
           render(data);
         }).catch(function (e) {
+          resetTaskUi();
           document.getElementById("emptyState").style.display = "grid";
           console.error(e);
         });
@@ -749,6 +774,12 @@
         api("/api/parent/notifications/read-all", { method: "POST" }).then(loadNotifications).finally(function () {
           button.disabled = false;
         });
+      });
+
+      document.getElementById("hideNotifications").addEventListener("click", function () {
+        if (!notificationLatestId) return;
+        localStorage.setItem(notificationHiddenKey, String(notificationLatestId));
+        document.getElementById("notificationBar").style.display = "none";
       });
 
       document.querySelectorAll(".type-tab").forEach(function (tab) {

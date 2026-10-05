@@ -189,6 +189,15 @@
   gap: 16px;
 }
 
+.parent-home .notification-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .parent-home .notification-heading {
   display: flex;
   align-items: center;
@@ -238,6 +247,22 @@
 .parent-home .notification-read-all:hover {
   border-color: #9fc5df;
   background: #fafdff;
+}
+
+.parent-home .notification-hide {
+  min-height: 34px;
+  padding: 0 11px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--parent-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.parent-home .notification-hide:hover {
+  border-color: #d7e3eb;
+  background: #fff;
+  color: var(--parent-sub);
 }
 
 .parent-home .notification-list {
@@ -346,6 +371,10 @@
   grid-template-columns: minmax(0, 1.68fr) minmax(320px, 0.82fr) !important;
   gap: 24px !important;
   align-items: start !important;
+}
+
+.parent-home .task-layout.is-hidden {
+  display: none !important;
 }
 
 .parent-home .stack {
