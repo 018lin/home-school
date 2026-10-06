@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>全局报告 · 家校共育</title>
+  <title>今日校园观察 · 家校共育</title>
   <link rel="stylesheet" href="css/refined-ui.css">
-  <link rel="stylesheet" href="css/teacher-ai.css">
+  <link rel="stylesheet" href="css/teacher-daily.css?v=2">
 </head>
-<body class="global-report teacher-home-page">
+<body class="teacher-daily-page">
   <header class="topbar">
-    <span class="brand">教师工作台</span>
+    <div class="brand"><span class="logo" aria-hidden="true"></span><span>教师工作台</span></div>
     <nav class="teacher-nav" aria-label="教师端导航">
-      <a class="nav-link active" href="teacher.html">全局报告</a>
+      <a class="nav-link active" href="teacher.html">今日记录</a>
       <a class="nav-link" href="teacher-ai.html">AI 洞察</a>
       <a class="nav-link" href="teacher-class-overview.html">班级概览</a>
       <a class="nav-link" href="teacher-publish.html">发布任务</a>
@@ -20,13 +20,51 @@
     </nav>
     <div class="top-actions">
       <span class="user-name" id="userName"></span>
-      <button class="btn-logout" id="logoutBtn">退出登录</button>
+      <button class="btn-logout" id="logoutBtn" type="button">退出登录</button>
     </div>
   </header>
   <main class="main">
-    <div id="reportBody"><p class="empty">正在读取班级数据并建立 AI 索引…</p></div>
+    <section class="daily-capture" aria-labelledby="dailyTitle">
+      <div class="capture-copy">
+        <span class="eyebrow">今日校园观察</span>
+        <h1 id="dailyTitle">记录今天，孩子在学校发生的事</h1>
+        <p>说出学生姓名和事情经过，整理后会发送到对应家长的首页通知栏。</p>
+      </div>
+
+      <div class="voice-stage">
+        <button class="record-button" id="recordButton" type="button" aria-pressed="false">
+          <span class="mic-icon" aria-hidden="true"></span>
+          <span id="recordButtonText">点击开始说</span>
+        </button>
+        <p class="record-status" id="recordStatus">支持普通话语音输入，也可以直接输入文字。</p>
+      </div>
+
+      <form class="daily-form" id="dailyForm">
+        <label class="sr-only" for="transcriptInput">校园观察内容</label>
+        <textarea id="transcriptInput" maxlength="2000" placeholder="例如：今天小明在科学课上主动帮助同学完成了实验，还把自己的观察结果讲给了全组同学。"></textarea>
+        <div class="form-footer">
+          <span class="char-count" id="charCount">0 / 2000</span>
+          <button class="primary-action" id="analyzeButton" type="submit">
+            <span class="spark-icon" aria-hidden="true">✦</span>
+            <span>整理并发布</span>
+          </button>
+        </div>
+      </form>
+      <p class="form-message" id="formMessage" role="status"></p>
+    </section>
+
+    <section class="daily-timeline" aria-labelledby="timelineTitle">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">记录留档</span>
+          <h2 id="timelineTitle">今日与历史记录</h2>
+        </div>
+        <span class="timeline-count" id="timelineCount">0 条</span>
+      </div>
+      <div class="timeline-list" id="timelineList"></div>
+    </section>
   </main>
   <script src="js/api.js"></script>
-  <script src="js/teacher-page.js"></script>
+  <script src="js/teacher-daily.js"></script>
 </body>
 </html>

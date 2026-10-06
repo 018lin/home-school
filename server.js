@@ -938,6 +938,81 @@ async function generateParentConcernPlan(input, child) {
   }
 }
 
+function dailySchoolUpdateFallback(transcript, children) {
+  const text = String(transcript || "").trim();
+  const candidates = (children || []).filter(function (child) {
+    return child && child.name;
+  }).sort(function (a, b) {
+    return String(b.name).length - String(a.name).length;
+  });
+  const matched = candidates.find(function (child) {
+    return text.includes(String(child.name));
+  }) || null;
+  const studentName = matched ? String(matched.name) : "学生";
+  const normalized = text.replace(/^今天[，,、\s]*/, "").trim();
+  const summary = normalized
+    ? (matched && !normalized.includes(studentName) ? studentName + "今天在学校" + normalized : normalized)
+    : studentName + "今天在学校有一条新的校园记录。";
+  return {
+    studentName: studentName,
+    summary: summary.slice(0, 260),
+    analysis: "先记录事实与过程，后续可继续观察孩子的参与方式、同伴互动和情绪变化。",
+    parentMessage: studentName + "今天在学校的表现：" + summary.slice(0, 220),
+    tags: ["校园观察"],
+    aiStatus: "fallback"
+  };
+}
+
+function normalizeDailySchoolUpdate(raw, fallback) {
+  if (!raw || typeof raw !== "object") return fallback;
+  const studentName = String(raw.studentName || raw.student_name || fallback.studentName || "学生").trim();
+  const summary = String(raw.summary || raw.eventSummary || fallback.summary || "").trim();
+  if (!summary) return fallback;
+  const tags = Array.isArray(raw.tags)
+    ? raw.tags.map(function (tag) { return String(tag || "").trim(); }).filter(Boolean).slice(0, 4)
+    : fallback.tags;
+  return {
+    studentName: studentName.slice(0, 80),
+    summary: summary.slice(0, 260),
+    analysis: String(raw.analysis || fallback.analysis || "").trim().slice(0, 600),
+    parentMessage: String(raw.parentMessage || raw.parent_message || fallback.parentMessage || summary).trim().slice(0, 600),
+    tags: tags.length ? tags : fallback.tags,
+    aiStatus: "ai"
+  };
+}
+
+async function generateDailySchoolUpdate(transcript, children) {
+  const fallback = dailySchoolUpdateFallback(transcript, children);
+  if (!getInteractionApiKey()) return fallback;
+  const candidateNames = (children || []).map(function (child) {
+    return String(child.name || "").trim();
+  }).filter(Boolean).slice(0, 200);
+  const messages = [
+    {
+      role: "system",
+      content: "你是家校共育系统的教师记录助手。请把老师口述的校园观察整理成客观、温和、适合家长阅读的中文内容。只返回 JSON，不要 Markdown，不要虚构事实，不给孩子贴标签，不做成绩排名。"
+    },
+    {
+      role: "user",
+      content: "请根据下面的教师口述生成 JSON，格式必须是：" +
+        "{\"studentName\":\"学生姓名\",\"summary\":\"面向家长的一句话事实摘要\"," +
+        "\"analysis\":\"基于事实的简短教育观察，不超过120字\"," +
+        "\"parentMessage\":\"发送给家长的温和通知，不超过220字\"," +
+        "\"tags\":[\"标签\"]}。" +
+        "如果口述中出现的姓名与候选名单一致，优先使用候选名单中的姓名；无法确认时使用“学生”。" +
+        "\n候选学生名单：" + JSON.stringify(candidateNames) +
+        "\n教师口述：" + String(transcript).slice(0, 2000)
+    }
+  ];
+  try {
+    const content = await requestInteractionChat(messages, { maxTokens: 900, temperature: 0.2 });
+    return normalizeDailySchoolUpdate(pickJsonObject(content), fallback);
+  } catch (error) {
+    console.warn("教师校园记录 AI 整理失败，将使用本地规则兜底：", error.message);
+    return fallback;
+  }
+}
+
 async function teacherParentInfo(childId) {
   const rows = await db.prepare(
     "SELECT u.display_name, b.relation FROM bindings b JOIN users u ON u.id = b.user_id " +
@@ -2578,6 +2653,93 @@ async function handleApi(req, res, pathname, query) {
       }
     });
     return sendJson(res, 200, { ok: true, recipientCount: parents.length });
+  }
+
+  if (req.method === "GET" && pathname === "/api/teacher/daily-updates") {
+    const requestedLimit = Number(query.get("limit") || 20);
+    const limit = Math.max(1, Math.min(50, Number.isFinite(requestedLimit) ? requestedLimit : 20));
+    const updates = await db.prepare(
+      "SELECT id, child_id, student_name, transcript, summary, analysis, parent_message, tags, " +
+      "ai_status, recipient_count, created_at FROM teacher_daily_updates " +
+      "WHERE teacher_id = ? ORDER BY id DESC LIMIT " + limit
+    ).all(user.id);
+    return sendJson(res, 200, { updates: updates });
+  }
+
+  if (req.method === "POST" && pathname === "/api/teacher/daily-updates") {
+    const body = await readBody(req);
+    const transcript = String(body.transcript || "").trim().slice(0, 2000);
+    if (!transcript) return sendJson(res, 400, { message: "请先说一段校园记录，或直接输入文字" });
+
+    const children = await getTeacherVisibleChildren();
+    const update = await generateDailySchoolUpdate(transcript, children);
+    const resolvedChild = children.find(function (child) {
+      return child && child.name && (
+        String(child.name).trim() === update.studentName ||
+        transcript.includes(String(child.name).trim())
+      );
+    }) || null;
+    if (resolvedChild) update.studentName = resolvedChild.name;
+
+    let parents = [];
+    if (resolvedChild) {
+      parents = await db.prepare(
+        "SELECT DISTINCT u.id FROM users u JOIN bindings b ON b.user_id = u.id " +
+        "WHERE b.child_id = ? AND " + realParentWhere("u") + " ORDER BY u.id"
+      ).all(resolvedChild.id, ...demoParams(1));
+    } else {
+      parents = await db.prepare(
+        "SELECT id FROM users WHERE " + realParentWhere("users") + " ORDER BY id"
+      ).all(...demoParams(1));
+    }
+
+    const parentMessage = update.parentMessage || update.summary;
+    const title = update.studentName && update.studentName !== "学生"
+      ? "今日校园观察 · " + update.studentName
+      : "今日校园观察";
+    const updateId = await db.transaction(async function (tx) {
+      const id = await tx.prepare(
+        "INSERT INTO teacher_daily_updates " +
+        "(teacher_id, child_id, student_name, transcript, summary, analysis, parent_message, tags, ai_status, recipient_count) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?)"
+      ).run(
+        user.id,
+        resolvedChild ? resolvedChild.id : null,
+        update.studentName || "学生",
+        transcript,
+        update.summary,
+        update.analysis || "",
+        parentMessage,
+        (update.tags || []).join(","),
+        update.aiStatus || "fallback",
+        parents.length
+      ).lastInsertRowid;
+      for (const parent of parents) {
+        await tx.prepare(
+          "INSERT INTO notifications (recipient_user_id, sender_user_id, type, title, content) VALUES (?,?,?,?,?)"
+        ).run(parent.id, user.id, "teacher_daily_update", title, parentMessage);
+      }
+      return id;
+    });
+
+    return sendJson(res, 200, {
+      ok: true,
+      id: updateId,
+      update: {
+        id: updateId,
+        child_id: resolvedChild ? resolvedChild.id : null,
+        student_name: update.studentName || "学生",
+        transcript: transcript,
+        summary: update.summary,
+        analysis: update.analysis || "",
+        parent_message: parentMessage,
+        tags: (update.tags || []).join(","),
+        ai_status: update.aiStatus || "fallback",
+        recipient_count: parents.length,
+        created_at: new Date().toISOString()
+      },
+      recipientCount: parents.length
+    });
   }
 
   if (req.method === "POST" && pathname === "/api/teacher/ai-chat") {

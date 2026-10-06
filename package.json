@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node --experimental-sqlite server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check database.js && node --check js/api.js && node --check js/login.js && node --check js/teacher-page.js",
+    "check": "node --check server.js && node --check database.js && node --check js/api.js && node --check js/login.js && node --check js/teacher-page.js && node --check js/teacher-daily.js",
     "migrate:neon": "node --experimental-sqlite scripts/migrate-sqlite-to-neon.js"
   },
   "engines": {

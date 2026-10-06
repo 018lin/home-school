@@ -108,6 +108,27 @@ test("core parent and teacher workflow remains compatible", async function () {
   assert.equal(result.response.status, 200);
   teacherToken = result.data.token;
 
+  result = await request("/api/teacher/daily-updates", {
+    method: "POST",
+    token: teacherToken,
+    body: {
+      transcript: "今天测试孩子在学校主动帮助同学整理图书，还把自己的观察结果分享给了小组。"
+    }
+  });
+  assert.equal(result.response.status, 200);
+  assert.equal(result.data.ok, true);
+  assert.ok(result.data.update.summary);
+
+  result = await request("/api/teacher/daily-updates", { token: teacherToken });
+  assert.equal(result.response.status, 200);
+  assert.ok(result.data.updates.length >= 1);
+
+  result = await request("/api/parent/notifications?limit=20", { token: parentToken });
+  assert.equal(result.response.status, 200);
+  assert.ok(result.data.notifications.some(function (item) {
+    return item.type === "teacher_daily_update";
+  }));
+
   result = await request("/api/teacher/tasks", {
     method: "POST",
     token: teacherToken,
