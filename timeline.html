@@ -211,6 +211,7 @@
       z-index: 1;
     }
     .item.has-feedback .timeline-marker::before { border-color: var(--teal); }
+    .item.is-observation .timeline-marker::before { border-color: #7a62c8; }
     .card {
       min-width: 0;
       padding: 22px 24px 23px;
@@ -271,6 +272,30 @@
       overflow-wrap: anywhere;
     }
     .item-content.is-empty { color: var(--muted); }
+    .observation-card {
+      border-color: #ddd7f2;
+      background: #fdfcff;
+    }
+    .observation-badge {
+      border-color: #e0d8f7;
+      background: #f2effc;
+      color: #6950ad;
+    }
+    .observation-analysis {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-left: 3px solid #b8a7e8;
+      background: #f7f4fd;
+      color: #5c5870;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .observation-analysis-label {
+      color: #443b65;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .observation-analysis p + p { margin-top: 4px; }
     .attachment-preview {
       display: grid;
       gap: 8px;
@@ -380,7 +405,7 @@
     <div class="page-title">
       <div class="eyebrow">成长档案</div>
       <h1>孩子成长时间线</h1>
-      <p>按时间回看每次任务提交、作品记录和成长反馈。</p>
+      <p>按时间回看任务提交、校园观察、作品记录和成长反馈。</p>
     </div>
     <div id="emptyState" class="empty" style="display:none"><div><h2>还没有成长记录</h2><p>完成第一个亲子任务后，这里会记录孩子的成长足迹。</p></div></div>
     <div class="timeline" id="timeline"></div>
@@ -478,6 +503,30 @@
         document.getElementById("emptyState").style.display = items.length ? "none" : "grid";
         document.getElementById("timeline").innerHTML = items.map(function (it) {
           var date = formatDate(it.created_at);
+          if (it.timeline_type === "teacher_observation") {
+            var observationTags = String(it.observation_tags || "").split(",").filter(function (tag) {
+              return tag && tag.trim();
+            });
+            var observationHtml = '<article class="item is-observation">' +
+              '<div class="timeline-date"><strong>' + esc(date.date) + '</strong><span>' + esc(date.detail) + '</span></div>' +
+              '<div class="timeline-marker" aria-hidden="true"></div>' +
+              '<div class="card observation-card">' +
+              '<div class="card-head"><h2 class="item-title" title="' + esc(it.title || "今日校园观察") + '">' +
+              esc(it.title || "今日校园观察") + '</h2><span class="type-badge observation-badge">教师记录</span></div>' +
+              '<p class="item-meta">记录于 ' + esc(date.full) + ' · ' + esc(it.teacher_name || "老师") + '</p>' +
+              '<p class="submission-label">老师观察到</p>' +
+              '<div class="item-content">' + esc(it.content || "老师记录了一条校园观察。") + '</div>';
+            if (it.observation_analysis) {
+              observationHtml += '<div class="observation-analysis"><p class="observation-analysis-label">教育观察</p>' +
+                '<p>' + esc(it.observation_analysis) + '</p></div>';
+            }
+            if (observationTags.length) {
+              observationHtml += '<div class="tags">' + observationTags.map(function (tag) {
+                return '<span class="tag">' + esc(tag.trim()) + '</span>';
+              }).join("") + '</div>';
+            }
+            return observationHtml + '</div></article>';
+          }
           var title = String(it.title || "成长实践记录");
           var content = String(it.content || "").trim();
           var teacherName = String(it.teacher_name || "老师");

@@ -129,6 +129,12 @@ test("core parent and teacher workflow remains compatible", async function () {
     return item.type === "teacher_daily_update";
   }));
 
+  result = await request("/api/timeline?childId=" + childId, { token: parentToken });
+  assert.equal(result.response.status, 200);
+  assert.ok(result.data.items.some(function (item) {
+    return item.timeline_type === "teacher_observation" && item.title.indexOf("测试孩子") >= 0;
+  }));
+
   result = await request("/api/teacher/tasks", {
     method: "POST",
     token: teacherToken,

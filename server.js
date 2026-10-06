@@ -2556,16 +2556,55 @@ async function handleApi(req, res, pathname, query) {
     const childId = query.get("childId") ? Number(query.get("childId")) : null;
     if (!childId) return sendJson(res, 400, { message: "缺少 childId" });
     if (!(await canAccessChild(user, childId))) return sendJson(res, 403, { message: "无权访问该孩子时间线" });
-    const items = await db.prepare(
+    const submissionItems = await db.prepare(
       "SELECT s.id, s.content, s.sub_type, s.attachments, s.created_at, t.title, t.task_type, t.week_start, " +
       "f.id AS feedback_id, f.comment AS feedback_comment, f.tags AS feedback_tags, f.created_at AS feedback_at, " +
-      "u.display_name AS teacher_name " +
+      "u.display_name AS teacher_name, 'submission' AS timeline_type " +
       "FROM submissions s " +
       "JOIN tasks t ON t.id = s.task_id " +
       "LEFT JOIN feedback f ON f.submission_id = s.id " +
       "LEFT JOIN users u ON u.id = f.teacher_id " +
-      "WHERE s.child_id = ? AND s.status = 'submitted' ORDER BY s.id DESC"
+      "WHERE s.child_id = ? AND s.status = 'submitted'"
     ).all(childId);
+    const observationItems = await db.prepare(
+      "SELECT d.id, d.child_id, d.student_name, d.summary, d.analysis, d.parent_message, " +
+      "d.tags, d.ai_status, d.recipient_count, d.created_at, u.display_name AS teacher_name, " +
+      "'teacher_observation' AS timeline_type " +
+      "FROM teacher_daily_updates d LEFT JOIN users u ON u.id = d.teacher_id " +
+      "WHERE d.child_id = ?"
+    ).all(childId);
+    const items = submissionItems.concat(observationItems.map(function (item) {
+      return {
+        id: item.id,
+        child_id: item.child_id,
+        content: item.summary,
+        sub_type: "teacher_observation",
+        attachments: "[]",
+        created_at: item.created_at,
+        title: "今日校园观察 · " + (item.student_name || "学生"),
+        task_type: "教师记录",
+        week_start: "",
+        feedback_id: null,
+        feedback_comment: null,
+        feedback_tags: "",
+        feedback_at: null,
+        teacher_name: item.teacher_name || "老师",
+        timeline_type: item.timeline_type,
+        observation_analysis: item.analysis || "",
+        observation_message: item.parent_message || item.summary || "",
+        observation_tags: item.tags || "",
+        observation_ai_status: item.ai_status || "fallback",
+        observation_recipient_count: Number(item.recipient_count || 0)
+      };
+    })).sort(function (a, b) {
+      const dateA = new Date(String(a.created_at || "").replace(" ", "T") + (
+        /[zZ]|[+-]\d{2}:?\d{2}$/.test(String(a.created_at || "")) ? "" : "+08:00"
+      )).getTime();
+      const dateB = new Date(String(b.created_at || "").replace(" ", "T") + (
+        /[zZ]|[+-]\d{2}:?\d{2}$/.test(String(b.created_at || "")) ? "" : "+08:00"
+      )).getTime();
+      return (Number.isNaN(dateB) ? 0 : dateB) - (Number.isNaN(dateA) ? 0 : dateA);
+    });
     // 标记该孩子的反馈为已读
     await db.prepare(
       "UPDATE feedback SET read_at = datetime('now','localtime') WHERE read_at IS NULL AND submission_id IN " +
