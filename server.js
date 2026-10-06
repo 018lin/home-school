@@ -1060,6 +1060,86 @@ async function getTeacherSubmissionRow(submissionId) {
   ).get(submissionId, ...demoParams(2));
 }
 
+async function getTeacherSubmissionDetail(submissionId) {
+  return await db.prepare(
+    "SELECT s.id, s.task_id, s.child_id, s.content, s.sub_type, s.attachments, s.created_at, s.status, " +
+    "c.name AS child_name, c.grade, " +
+    "t.title AS task_title, t.task_type, t.week_start, t.goal AS task_goal, t.steps AS task_steps, " +
+    "t.dialogue_tips AS task_dialogue_tips, t.submit_hint AS task_submit_hint, t.duration AS task_duration, " +
+    "t.materials AS task_materials, t.fallback_plan AS task_fallback_plan, t.created_at AS task_created_at, " +
+    "(SELECT COUNT(*) FROM feedback f WHERE f.submission_id = s.id) AS feedback_count " +
+    "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
+    "WHERE s.id = ? AND " + realStudentWhere("c")
+  ).get(submissionId, ...demoParams(2));
+}
+
+function fallbackSubmissionFeedback(row) {
+  const content = String(row.content || "").trim();
+  const taskType = String(row.task_type || "").trim();
+  const tags = [];
+  if (content.length >= 30) tags.push("表达力");
+  if (/一起|共同|合作|分工|陪伴/.test(content)) tags.push("合作");
+  if (/观察|发现|记录|看到|变化/.test(content) || taskType === "观察探究") tags.push("观察力");
+  if (/坚持|每天|连续|一周/.test(content)) tags.push("坚持");
+  if (!tags.length) tags.push("参与");
+  const firstSentence = content.split(/[。！？.!?]/)[0].trim();
+  const evidence = firstSentence ? "从提交中能看到“" + firstSentence.slice(0, 34) + "”。" : "已经完成了本次任务提交。";
+  return {
+    comment: "这次任务完成得很认真。" + evidence + "建议继续记录过程中的具体发现，让下一次分享更有内容。",
+    tags: tags.slice(0, 3).join(",")
+  };
+}
+
+async function generateSubmissionFeedback(row) {
+  const fallback = fallbackSubmissionFeedback(row);
+  if (!getInteractionApiKey()) {
+    return { comment: fallback.comment, tags: fallback.tags, provider: "本地建议", aiGenerated: false };
+  }
+  const messages = [
+    {
+      role: "system",
+      content: "你是家校共育系统的教师点评助手。请根据任务要求和学生提交，生成一段温和、具体、可执行的中文过程性评价。只肯定真实可见的行动，不夸大、不比较学生、不做心理或医学判断，不评价家长是否关心孩子。评价控制在50到100字，给出不超过3个能力标签。只返回JSON：{\"comment\":\"评价内容\",\"tags\":[\"标签1\",\"标签2\"]}。"
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        task: {
+          title: row.task_title || "",
+          type: row.task_type || "",
+          goal: row.task_goal || "",
+          steps: row.task_steps || "",
+          submitHint: row.task_submit_hint || ""
+        },
+        submission: {
+          content: String(row.content || "").slice(0, 3000),
+          type: row.sub_type || "text"
+        }
+      })
+    }
+  ];
+  try {
+    const raw = await requestInteractionChat(messages, { temperature: 0.35, maxTokens: 500 });
+    const parsed = pickJsonObject(raw);
+    const comment = parsed && String(parsed.comment || "").trim();
+    if (!comment) throw new Error("AI未返回有效评价");
+    const tags = Array.isArray(parsed.tags) ? parsed.tags.join(",") : cleanTags(parsed.tags || "");
+    return {
+      comment: comment.slice(0, 300),
+      tags: tags || fallback.tags,
+      provider: getInteractionProvider(),
+      aiGenerated: true
+    };
+  } catch (error) {
+    return {
+      comment: fallback.comment,
+      tags: fallback.tags,
+      provider: "本地建议",
+      aiGenerated: false,
+      warning: "AI暂时不可用，已生成一份本地评价草稿。"
+    };
+  }
+}
+
 async function upsertTeacherSubmissionVector(submissionId) {
   const row = await getTeacherSubmissionRow(submissionId);
   const doc = row ? buildTeacherSubmissionDocument(row) : null;
@@ -3876,6 +3956,56 @@ async function handleApi(req, res, pathname, query) {
       }
     }
     return sendJson(res, 200, { ok: true });
+  }
+
+  const submissionDetailMatch = pathname.match(/^\/api\/teacher\/submissions\/(\d+)$/);
+  if (req.method === "GET" && submissionDetailMatch) {
+    const submissionId = Number(submissionDetailMatch[1]);
+    const row = await getTeacherSubmissionDetail(submissionId);
+    if (!row || row.status !== "submitted") return sendJson(res, 404, { message: "提交不存在或尚未正式提交" });
+    const feedbacks = await db.prepare(
+      "SELECT f.id, f.comment, f.tags, f.created_at, u.display_name AS teacher_name " +
+      "FROM feedback f LEFT JOIN users u ON u.id = f.teacher_id " +
+      "WHERE f.submission_id = ? ORDER BY f.id DESC"
+    ).all(submissionId);
+    return sendJson(res, 200, {
+      submission: {
+        id: row.id,
+        childId: row.child_id,
+        childName: row.child_name,
+        grade: row.grade,
+        content: row.content,
+        subType: row.sub_type,
+        attachments: row.attachments,
+        createdAt: row.created_at
+      },
+      task: {
+        id: row.task_id,
+        title: row.task_title,
+        type: row.task_type,
+        weekStart: row.week_start,
+        goal: row.task_goal,
+        steps: row.task_steps,
+        dialogueTips: row.task_dialogue_tips,
+        submitHint: row.task_submit_hint,
+        duration: row.task_duration,
+        materials: row.task_materials,
+        fallbackPlan: row.task_fallback_plan,
+        createdAt: row.task_created_at
+      },
+      feedbacks: feedbacks,
+      feedbackCount: Number(row.feedback_count || 0)
+    });
+  }
+
+  if (req.method === "POST" && pathname === "/api/teacher/submissions/ai-feedback") {
+    const body = await readBody(req);
+    const submissionId = Number(body.submissionId);
+    if (!submissionId) return sendJson(res, 400, { message: "缺少 submissionId" });
+    const row = await getTeacherSubmissionDetail(submissionId);
+    if (!row || row.status !== "submitted") return sendJson(res, 404, { message: "提交不存在或尚未正式提交" });
+    const feedback = await generateSubmissionFeedback(row);
+    return sendJson(res, 200, { ok: true, feedback: feedback });
   }
 
   if (req.method === "POST" && pathname === "/api/teacher/feedback") {

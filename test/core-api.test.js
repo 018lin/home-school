@@ -223,6 +223,22 @@ test("core parent and teacher workflow remains compatible", async function () {
   assert.equal(typeof overviewSubmission.feedback_count, "number");
   assert.equal(overviewSubmission.feedback_count, 1);
 
+  result = await request("/api/teacher/submissions/" + submissionId, { token: teacherToken });
+  assert.equal(result.response.status, 200);
+  assert.equal(result.data.submission.content, "我们观察到阳台上的植物长出了新叶。");
+  assert.equal(result.data.task.title, "测试班级任务");
+  assert.equal(result.data.task.goal, "完成一次家庭观察");
+  assert.equal(result.data.feedbacks[0].comment, "记录得很具体。");
+
+  result = await request("/api/teacher/submissions/ai-feedback", {
+    method: "POST",
+    token: teacherToken,
+    body: { submissionId }
+  });
+  assert.equal(result.response.status, 200);
+  assert.ok(result.data.feedback.comment);
+  assert.equal(result.data.feedback.aiGenerated, false);
+
   result = await request("/api/teacher/ai-chat", {
     method: "POST",
     token: teacherToken,
