@@ -49,6 +49,14 @@
  }
  .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
  .form-msg { min-height: 18px; margin-top: 8px; font-size: 12px; color: #16a34a; }
+ .ai-request-plan {
+ background: #f5fbff; border: 1px solid #cfe5f4; border-radius: 8px; padding: 12px;
+ margin-top: 10px; color: #496779; font-size: 12px; line-height: 1.65;
+ }
+ .ai-request-plan p { margin-top: 6px; }
+ .ai-request-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #164b68; }
+ .ai-request-plan-head span { color: #31739a; font-size: 11px; font-weight: 600; }
+ .ai-risk { color: #a13a2a !important; font-weight: 600; }
  @media (max-width: 700px) {
  .topbar { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
  .teacher-nav { order: 3; width: 100%; flex-basis: 100%; }
@@ -150,19 +158,33 @@
  return status === "approved" ? "已同意" : status === "rejected" ? "已拒绝" : "待审核";
  }
 
+ function parseAiPlan(req) {
+ try { return JSON.parse(req.ai_plan || "{}") || {}; } catch (e) { return {}; }
+ }
+
+ function taskTypeOptions(selected) {
+ var types = ["阅读", "习惯养成", "学科应用", "情绪社交", "家务实践", "运动健身", "观察探究"];
+ return types.map(function (type) {
+ return '<option' + (type === selected ? ' selected' : '') + '>' + esc(type) + '</option>';
+ }).join("");
+ }
+
  function defaultTaskFromRequest(req) {
+ var plan = parseAiPlan(req);
+ var aiTask = plan.task || {};
  return {
- title: req.title || "家长自主定制任务",
- type: "家务实践",
- duration: Number(req.duration) || 20,
- difficulty: "普通",
- materials: "按家庭实际准备",
- goal: req.goal || "结合家庭意愿开展一次亲子活动",
- steps: req.description || "",
- tips: "和孩子聊聊：这件事最有意思、最困难的地方分别是什么？",
- submit: "可提交照片、文字记录或一段亲子对话",
- fallback: "时间有限时可缩短步骤，只保留一次共同完成和一次交流"
- };
+  title: aiTask.title || req.title || "家长自主定制任务",
+  type: aiTask.type || "家务实践",
+  duration: Number(aiTask.duration) || Number(req.duration) || 20,
+  difficulty: aiTask.difficulty || "普通",
+  materials: aiTask.materials || "按家庭实际准备",
+  goal: aiTask.goal || req.goal || "结合家庭意愿开展一次亲子活动",
+  steps: aiTask.steps || req.description || "",
+  tips: aiTask.dialogueTips || "和孩子聊聊：这件事最有意思、最困难的地方分别是什么？",
+  submit: aiTask.submitHint || "可提交照片、文字记录或一段亲子对话",
+  fallback: aiTask.fallbackPlan || "时间有限时可缩短步骤，只保留一次共同完成和一次交流",
+  plan: plan
+  };
  }
 
  function renderParentRequests(requests) {
@@ -179,14 +201,32 @@
  var disabled = req.status === "pending" ? "" : " disabled";
  var h = '<article class="parent-request-item" data-id="' + req.id + '">';
  h += '<div class="parent-request-top"><div><strong>' + esc(req.child_name || "学生") + '</strong><span>' + esc((req.grade || "") + " · " + (req.parent_name || "家长")) + '</span></div><em class="request-status ' + esc(req.status) + '">' + requestStatusText(req.status) + '</em></div>';
- h += '<div class="parent-request-original"><b>家长想法</b><p>' + esc(req.description || "") + '</p>' + (req.goal ? '<p>期待：' + esc(req.goal) + '</p>' : '') + '</div>';
+  h += '<div class="parent-request-original"><b>家长观察</b>';
+  h += (req.concern_category ? '<p>关注方向：' + esc(req.concern_category) + '</p>' : '');
+  h += '<p>' + esc(req.observed_behavior || req.description || "") + '</p>';
+  h += (req.context ? '<p>发生场景：' + esc(req.context) + '</p>' : '');
+  h += (req.frequency ? '<p>出现频率：' + esc(req.frequency) + '</p>' : '');
+  h += (req.impact ? '<p>家庭影响：' + esc(req.impact) + '</p>' : '');
+  h += (req.parent_expectation || req.goal ? '<p>家长期待：' + esc(req.parent_expectation || req.goal) + '</p>' : '');
+  h += (req.family_constraints ? '<p>执行限制：' + esc(req.family_constraints) + '</p>' : '') + '</div>';
+  if (task.plan && task.plan.analysisSummary) {
+  h += '<div class="ai-request-plan"><div class="ai-request-plan-head"><b>AI 分析草案</b><span>' +
+    esc(req.ai_status === "ai" ? "AI 已生成" : "基础规则兜底") + '</span></div>';
+  h += '<p>' + esc(task.plan.analysisSummary) + '</p>';
+  if (task.plan.supportGoal) h += '<p><b>支持目标：</b>' + esc(task.plan.supportGoal) + '</p>';
+  if (task.plan.boundaryNote) h += '<p><b>边界提示：</b>' + esc(task.plan.boundaryNote) + '</p>';
+  if (task.plan.needsProfessionalReview) h += '<p class="ai-risk">包含需要进一步人工了解的风险信号，请谨慎决定是否适合用家庭任务处理。</p>';
+  h += '</div>';
+  }
  if (req.status === "pending") {
  h += '<div class="field"><label>任务标题</label><input class="pr-title" maxlength="80" value="' + esc(task.title) + '"' + disabled + '></div>';
- h += '<div class="row2"><div class="field"><label>任务类型</label><select class="pr-type"' + disabled + '><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option selected>家务实践</option><option>运动健身</option><option>观察探究</option></select></div><div class="field"><label>预计时长</label><input class="pr-duration" type="number" min="5" max="90" value="' + task.duration + '"' + disabled + '></div></div>';
+  h += '<div class="row2"><div class="field"><label>任务类型</label><select class="pr-type"' + disabled + '>' + taskTypeOptions(task.type) + '</select></div><div class="field"><label>预计时长</label><input class="pr-duration" type="number" min="5" max="90" value="' + task.duration + '"' + disabled + '></div></div>';
+  h += '<div class="row2"><div class="field"><label>难度</label><select class="pr-difficulty"' + disabled + '><option' + (task.difficulty === "简单" ? ' selected' : '') + '>简单</option><option' + (task.difficulty === "普通" ? ' selected' : '') + '>普通</option><option' + (task.difficulty === "进阶" ? ' selected' : '') + '>进阶</option></select></div><div class="field"><label>所需材料</label><input class="pr-materials" maxlength="180" value="' + esc(task.materials) + '"' + disabled + '></div></div>';
  h += '<div class="field"><label>目标</label><input class="pr-goal" maxlength="180" value="' + esc(task.goal) + '"' + disabled + '></div>';
  h += '<div class="field"><label>实施步骤</label><textarea class="pr-steps"' + disabled + '>' + esc(task.steps) + '</textarea></div>';
  h += '<div class="field"><label>对话提示</label><input class="pr-tips" maxlength="200" value="' + esc(task.tips) + '"' + disabled + '></div>';
  h += '<div class="field"><label>提交要求</label><input class="pr-submit" maxlength="200" value="' + esc(task.submit) + '"' + disabled + '></div>';
+  h += '<div class="field"><label>替代方案</label><input class="pr-fallback" maxlength="240" value="' + esc(task.fallback) + '"' + disabled + '></div>';
  h += '<div class="field"><label>教师评价</label><textarea class="pr-comment" placeholder="同意时可写鼓励，拒绝时需说明原因或替代建议"></textarea></div>';
  h += '<div class="request-actions"><button class="btn-confirm pr-approve" type="button">同意实施</button><button class="btn-cancel pr-reject" type="button">拒绝并评价</button></div><p class="form-msg pr-msg"></p>';
  } else {
@@ -222,10 +262,13 @@
  title: item.querySelector(".pr-title").value.trim(),
  type: item.querySelector(".pr-type").value,
  duration: Number(item.querySelector(".pr-duration").value) || 20,
+              difficulty: item.querySelector(".pr-difficulty").value,
+              materials: item.querySelector(".pr-materials").value.trim(),
  goal: item.querySelector(".pr-goal").value.trim(),
  steps: item.querySelector(".pr-steps").value.trim(),
  dialogueTips: item.querySelector(".pr-tips").value.trim(),
- submitHint: item.querySelector(".pr-submit").value.trim()
+              submitHint: item.querySelector(".pr-submit").value.trim(),
+              fallbackPlan: item.querySelector(".pr-fallback").value.trim()
  }
  }).then(function (res) {
  if (res.ok) loadParentRequests();

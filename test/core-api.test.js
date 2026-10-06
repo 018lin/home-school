@@ -224,6 +224,64 @@ test("core parent and teacher workflow remains compatible", async function () {
     concurrentResults.map(function (item) { return item.response.status; }).sort(),
     [200, 409]
   );
+
+  result = await request("/api/parent/task-requests", {
+    method: "POST",
+    token: parentToken,
+    body: {
+      childId,
+      category: "情绪表达",
+      observedBehavior: "孩子遇到困难时会离开座位，不太愿意说自己哪里不会。",
+      context: "工作日晚上写作业时比较明显。",
+      frequency: "每周几次",
+      impact: "我们容易因为这件事争执。",
+      parentExpectation: "希望孩子能先说出困难，家长也想少一些催促。",
+      familyConstraints: "工作日晚间大约只有 15 分钟。",
+      duration: 15
+    }
+  });
+  assert.equal(result.response.status, 200);
+  assert.equal(result.data.ok, true);
+  assert.equal(result.data.aiStatus, "fallback");
+  const concernRequestId = Number(result.data.request.id);
+  assert.ok(concernRequestId);
+
+  result = await request("/api/parent/task-requests?childId=" + childId, { token: parentToken });
+  assert.equal(result.response.status, 200);
+  assert.ok(result.data.requests.some(function (item) { return Number(item.id) === concernRequestId; }));
+
+  result = await request("/api/teacher/parent-task-requests", { token: teacherToken });
+  assert.equal(result.response.status, 200);
+  const concernRequest = result.data.requests.find(function (item) { return Number(item.id) === concernRequestId; });
+  assert.ok(concernRequest);
+  assert.equal(concernRequest.ai_status, "fallback");
+  assert.ok(concernRequest.ai_plan);
+
+  result = await request("/api/teacher/parent-task-requests/review", {
+    method: "POST",
+    token: teacherToken,
+    body: {
+      requestId: concernRequestId,
+      status: "approved",
+      teacherComment: "已根据家庭时间调整，请先尝试一次并记录过程。",
+      title: "困难时先说出来",
+      type: "情绪社交",
+      duration: 15,
+      goal: "帮助孩子表达遇到的困难",
+      steps: "1. 选择一个具体困难\n2. 请孩子说说发生了什么\n3. 一起想一个小行动",
+      dialogueTips: "你希望我怎样陪你一起想办法？",
+      submitHint: "提交两三句话的过程记录",
+      fallbackPlan: "孩子不愿长谈时只完成五分钟倾听"
+    }
+  });
+  assert.equal(result.response.status, 200);
+  assert.ok(Number(result.data.taskId));
+
+  result = await request("/api/parent/notifications?limit=20", { token: parentToken });
+  assert.equal(result.response.status, 200);
+  assert.ok(result.data.notifications.some(function (item) {
+    return item.type === "parent_task_request" && item.title === "老师已为孩子准备定制任务";
+  }));
 });
 
 test("input and static file boundaries are enforced", async function () {

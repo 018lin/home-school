@@ -805,6 +805,139 @@ async function generateStudentAiSuggestion(student, answers, history, behavior, 
   }
 }
 
+function concernNeedsProfessionalReview(input) {
+  const text = [
+    input.observedBehavior,
+    input.context,
+    input.impact,
+    input.parentExpectation
+  ].join(" ");
+  return /(自伤|自杀|不想活|伤害自己|伤人|虐待|严重暴力|极端危险)/.test(text);
+}
+
+function concernPlanFallback(input, child) {
+  const category = input.category || "家庭沟通";
+  const observed = input.observedBehavior || "家长希望更好地理解孩子近期的表现";
+  const expectation = input.parentExpectation || "通过一次轻量互动，帮助家长观察并支持孩子";
+  const needsProfessionalReview = concernNeedsProfessionalReview(input);
+  return {
+    analysisSummary: "家长描述了「" + category + "」方面的观察，当前先将内容理解为一个需要被共同观察和支持的家庭场景，不对孩子做性格或心理诊断。",
+    observations: ["可观察描述：" + observed, input.context ? "发生场景：" + input.context : "具体发生场景仍可在后续沟通中补充"],
+    supportGoal: expectation,
+    boundaryNote: needsProfessionalReview
+      ? "描述中出现需要优先由班主任或学校专业人员进一步了解的风险信号，不建议仅通过家庭任务处理。"
+      : "一次任务只能用于练习和观察，不能据此判断问题是否已经解决。",
+    needsProfessionalReview: needsProfessionalReview,
+    task: {
+      title: "亲子观察：一起理解这件事",
+      type: category === "情绪表达" || category === "同伴交往" ? "情绪社交" : "观察探究",
+      duration: Math.max(10, Math.min(30, Number(input.duration) || 20)),
+      difficulty: "简单",
+      materials: "纸笔可选",
+      goal: "围绕一个具体场景，帮助孩子表达感受和想法，也让家长记录一次有效回应",
+      steps: "1. 家长和孩子一起选择一个最近发生的具体场景\n2. 先请孩子说说当时发生了什么、自己怎么想\n3. 家长只做复述和追问，不急着评价或给答案\n4. 一起记录一个下次可以尝试的小行动",
+      dialogueTips: "「当时发生了什么？你希望我怎样陪你一起想办法？」",
+      submitHint: "提交两三句话的过程记录，说明孩子愿意分享了什么、家长尝试了怎样的回应",
+      fallbackPlan: "孩子不愿长谈时，只完成一次五分钟倾听；也可以由主要陪伴人先记录观察，不强迫孩子完成"
+    },
+    followUp: "完成后继续观察孩子是否愿意表达、哪种回应更容易让对话继续。"
+  };
+}
+
+function normalizeConcernPlan(raw, fallback, input) {
+  if (!raw || typeof raw !== "object") return fallback;
+  const task = raw.task && typeof raw.task === "object" ? raw.task : {};
+  const title = String(task.title || "").trim();
+  const goal = String(task.goal || "").trim();
+  const steps = String(task.steps || "").trim();
+  if (!title || !goal || !steps) return fallback;
+  const types = ["阅读", "习惯养成", "学科应用", "情绪社交", "家务实践", "运动健身", "观察探究"];
+  const rawDuration = Number(task.duration) || Number(input.duration) || 20;
+  return {
+    analysisSummary: String(raw.analysisSummary || fallback.analysisSummary).slice(0, 800),
+    observations: Array.isArray(raw.observations) ? raw.observations.map(function (item) {
+      return String(item || "").trim();
+    }).filter(Boolean).slice(0, 5) : fallback.observations,
+    supportGoal: String(raw.supportGoal || fallback.supportGoal).slice(0, 400),
+    boundaryNote: String(raw.boundaryNote || fallback.boundaryNote).slice(0, 500),
+    needsProfessionalReview: !!raw.needsProfessionalReview || fallback.needsProfessionalReview,
+    task: {
+      title: title.slice(0, 100),
+      type: types.includes(String(task.type || "")) ? String(task.type) : fallback.task.type,
+      duration: Math.max(5, Math.min(60, rawDuration)),
+      difficulty: ["简单", "普通", "进阶"].includes(String(task.difficulty || "")) ? String(task.difficulty) : "简单",
+      materials: String(task.materials || fallback.task.materials).slice(0, 180),
+      goal: goal.slice(0, 300),
+      steps: steps.slice(0, 1800),
+      dialogueTips: String(task.dialogueTips || fallback.task.dialogueTips).slice(0, 300),
+      submitHint: String(task.submitHint || fallback.task.submitHint).slice(0, 300),
+      fallbackPlan: String(task.fallbackPlan || fallback.task.fallbackPlan).slice(0, 400)
+    },
+    followUp: String(raw.followUp || fallback.followUp).slice(0, 500)
+  };
+}
+
+async function generateParentConcernPlan(input, child) {
+  const fallback = concernPlanFallback(input, child);
+  if (!getInteractionApiKey()) return { plan: fallback, status: "fallback" };
+  const profile = {
+    grade: child.grade || "未填写",
+    age: child.age || "未填写",
+    caregiver: child.caregiver || "未填写",
+    interests: child.interests || "未填写",
+    familyNote: child.family_note || "未填写"
+  };
+  const messages = [
+    {
+      role: "system",
+      content: "你是家校共育系统中的教师任务设计助手。家长提交了孩子近期的观察和支持需求。请把描述整理成中性的、可验证的观察，并给出一份低负担、可在一周内完成的亲子任务草案，供教师审核。绝不使用“性格缺陷”“问题儿童”等标签，不做心理或医学诊断，不把一次任务当成治疗。若出现自伤、伤人、虐待或明显安全风险，必须将 needsProfessionalReview 设为 true，并建议联系班主任或学校专业人员；不要用普通亲子任务替代专业支持。只返回 JSON，不要 Markdown。"
+    },
+    {
+      role: "user",
+      content: "返回格式必须为：" + JSON.stringify({
+        analysisSummary: "对家长描述的中性理解",
+        observations: ["可观察事实或需要补充的场景"],
+        supportGoal: "本次希望支持的具体能力",
+        boundaryNote: "边界和风险提示",
+        needsProfessionalReview: false,
+        task: {
+          title: "任务标题",
+          type: "阅读|习惯养成|学科应用|情绪社交|家务实践|运动健身|观察探究",
+          duration: 20,
+          difficulty: "简单|普通|进阶",
+          materials: "材料",
+          goal: "任务目标",
+          steps: "每行一个步骤",
+          dialogueTips: "对话提示",
+          submitHint: "提交要求",
+          fallbackPlan: "替代方案"
+        },
+        followUp: "完成后观察什么"
+      }) + "\n\n孩子档案：" + JSON.stringify(profile) +
+      "\n家长提交的关注：" + JSON.stringify({
+        category: input.category,
+        observedBehavior: input.observedBehavior,
+        context: input.context,
+        frequency: input.frequency,
+        impact: input.impact,
+        parentExpectation: input.parentExpectation,
+        familyConstraints: input.familyConstraints,
+        duration: input.duration
+      })
+    }
+  ];
+  try {
+    const content = await requestInteractionChat(messages, { maxTokens: 1600, temperature: 0.2 });
+    return {
+      plan: normalizeConcernPlan(pickJsonObject(content), fallback, input),
+      status: "ai"
+    };
+  } catch (error) {
+    console.warn("家长成长关注 AI 方案生成失败，将使用本地规则兜底：", error.message);
+    return { plan: fallback, status: "fallback" };
+  }
+}
+
 async function teacherParentInfo(childId) {
   const rows = await db.prepare(
     "SELECT u.display_name, b.relation FROM bindings b JOIN users u ON u.id = b.user_id " +
@@ -914,7 +1047,13 @@ function buildParentTaskRequestDocument(row) {
       "提议标题：" + (row.title || "未填写") + "；预计时长：" + (row.duration || 20) + "分钟。",
       "家长想和孩子一起做：" + String(row.description || "").slice(0, 3000),
       "家长期待目标：" + (row.goal || "未填写") + "。",
+      "关注方向：" + (row.concern_category || "未填写") + "；观察到的行为：" + (row.observed_behavior || row.description || "未填写") + "。",
+      row.context ? "发生场景：" + row.context + "。" : "发生场景：未填写。",
+      row.frequency ? "出现频率：" + row.frequency + "。" : "出现频率：未填写。",
+      row.impact ? "对家庭的影响：" + row.impact + "。" : "对家庭的影响：未填写。",
+      row.family_constraints ? "家庭限制：" + row.family_constraints + "。" : "家庭限制：未填写。",
       "当前审核状态：" + statusText + "。",
+      "AI 方案状态：" + (row.ai_status || "pending") + "。",
       row.teacher_comment ? "教师评价：" + row.teacher_comment : "教师评价：暂无。",
       row.task_id ? "已生成正式个人任务，任务ID：" + row.task_id + "。" : "尚未生成正式任务。"
     ].join("\n"),
@@ -2101,6 +2240,26 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { notifications, unreadCount });
   }
 
+  if (req.method === "GET" && pathname === "/api/parent/task-requests") {
+    if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可查看成长关注" });
+    const requestedChildId = query.get("childId") ? Number(query.get("childId")) : null;
+    if (requestedChildId && !(await canAccessChild(user, requestedChildId))) {
+      return sendJson(res, 403, { message: "无权访问该孩子信息" });
+    }
+    const requestListStatement = db.prepare(
+      "SELECT r.id, r.child_id, r.title, r.concern_category, r.observed_behavior, r.status, " +
+      "r.teacher_comment, r.task_id, r.created_at, r.reviewed_at, t.title AS task_title " +
+      "FROM parent_task_requests r LEFT JOIN tasks t ON t.id = r.task_id " +
+      "WHERE r.user_id = ? " + (requestedChildId ? "AND r.child_id = ? " : "") +
+      "ORDER BY r.id DESC LIMIT 20"
+    );
+    const rows = await requestListStatement.all.apply(
+      requestListStatement,
+      requestedChildId ? [user.id, requestedChildId] : [user.id]
+    );
+    return sendJson(res, 200, { requests: rows });
+  }
+
   if (req.method === "POST" && pathname === "/api/parent/notifications/read-all") {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可标记通知" });
     await db.prepare(
@@ -2125,16 +2284,42 @@ async function handleApi(req, res, pathname, query) {
     const body = await readBody(req);
     const childId = Number(body.childId);
     if (!childId || !(await canAccessChild(user, childId))) return sendJson(res, 403, { message: "无权访问该孩子信息" });
-    const description = String(body.description || "").trim();
-    const title = String(body.title || "").trim().slice(0, 60) || "这个星期，我想跟孩子一起做";
-    const goal = String(body.goal || "").trim().slice(0, 160);
+    const category = String(body.category || "").trim().slice(0, 40);
+    const observedBehavior = String(body.observedBehavior || body.description || "").trim();
+    const context = String(body.context || "").trim();
+    const frequency = String(body.frequency || "").trim().slice(0, 40);
+    const impact = String(body.impact || "").trim();
+    const parentExpectation = String(body.parentExpectation || body.goal || "").trim();
+    const familyConstraints = String(body.familyConstraints || "").trim();
+    const description = observedBehavior;
+    const title = String(body.title || "").trim().slice(0, 60) || (category ? category + "方面的成长关注" : "孩子近期的成长关注");
+    const goal = parentExpectation.slice(0, 160);
     const duration = Math.max(5, Math.min(90, Number(body.duration) || 20));
-    if (description.length < 4) return sendJson(res, 400, { message: "请至少写 4 个字说明想和孩子做什么" });
-    if (description.length > 1200) return sendJson(res, 400, { message: "内容过长，请控制在 1200 字以内" });
+    if (description.length < 4) return sendJson(res, 400, { message: "请至少写 4 个字描述你观察到的具体情况" });
+    if (description.length > 1200 || context.length > 1000 || impact.length > 800 ||
+      parentExpectation.length > 800 || familyConstraints.length > 800) {
+      return sendJson(res, 400, { message: "描述内容过长，请适当精简后再提交" });
+    }
+    const child = await db.prepare("SELECT id, name, grade, gender, age, caregiver, interests, family_note FROM children WHERE id = ?").get(childId);
+    const aiResult = await generateParentConcernPlan({
+      category: category || "未分类",
+      observedBehavior: observedBehavior,
+      context: context,
+      frequency: frequency,
+      impact: impact,
+      parentExpectation: parentExpectation,
+      familyConstraints: familyConstraints,
+      duration: duration
+    }, child || {});
     const id = await db.transaction(async function (tx) {
       const requestId = await tx.prepare(
-        "INSERT INTO parent_task_requests (user_id, child_id, title, description, goal, duration) VALUES (?,?,?,?,?,?)"
-      ).run(user.id, childId, title, description, goal, duration).lastInsertRowid;
+        "INSERT INTO parent_task_requests " +
+        "(user_id, child_id, title, description, goal, duration, concern_category, observed_behavior, context, frequency, impact, parent_expectation, family_constraints, ai_plan, ai_status) " +
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      ).run(
+        user.id, childId, title, description, goal, duration, category, observedBehavior, context, frequency,
+        impact, parentExpectation, familyConstraints, JSON.stringify(aiResult.plan), aiResult.status
+      ).lastInsertRowid;
       await logEvent(user, "parent_task_request_submitted", childId, null, { requestId: requestId }, tx);
       return requestId;
     });
@@ -2145,10 +2330,16 @@ async function handleApi(req, res, pathname, query) {
       console.warn("家长定制任务索引失败：", error.message);
     }
     const request = await db.prepare(
-      "SELECT id, title, description, goal, duration, status, teacher_comment, task_id, created_at, reviewed_at " +
+      "SELECT id, title, concern_category, observed_behavior, duration, status, teacher_comment, task_id, created_at, reviewed_at, ai_status " +
       "FROM parent_task_requests WHERE id = ?"
     ).get(id);
-    return sendJson(res, 200, { ok: true, request, vectorIndexed: !!(vector && vector.indexed) });
+    return sendJson(res, 200, {
+      ok: true,
+      request: request,
+      aiStatus: aiResult.status,
+      message: aiResult.status === "ai" ? "已提交，AI 已生成方案，等待老师审核" : "已提交，当前使用基础方案，等待老师审核",
+      vectorIndexed: !!(vector && vector.indexed)
+    });
   }
 
   /* ---- 首次登录问卷（孩子信息 + 陪伴情况，用于个性化任务） ---- */
@@ -2594,6 +2785,20 @@ async function handleApi(req, res, pathname, query) {
         return sendJson(res, 409, { message: error.message, errorCode: error.code });
       }
       throw error;
+    }
+    const parentRequestOwner = await db.prepare(
+      "SELECT user_id, child_id FROM parent_task_requests WHERE id = ?"
+    ).get(requestId);
+    if (parentRequestOwner) {
+      const notificationTitle = decision === "approved"
+        ? "老师已为孩子准备定制任务"
+        : "老师已回复你的成长关注";
+      const notificationContent = decision === "approved"
+        ? "老师已根据你提交的情况调整了一份定制任务：" + (String(body.title || request.title || "本周成长任务").trim()) + "。"
+        : "老师暂未采用这次关注内容，老师回复：" + (comment || "请查看教师端反馈。");
+      await db.prepare(
+        "INSERT INTO notifications (recipient_user_id, sender_user_id, type, title, content) VALUES (?,?,?,?,?)"
+      ).run(parentRequestOwner.user_id, user.id, "parent_task_request", notificationTitle, notificationContent);
     }
     let vector = null;
     try {
