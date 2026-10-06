@@ -477,6 +477,17 @@
         };
       }
 
+      function sortTimelineItems(items) {
+        return (items || []).slice().sort(function (a, b) {
+          var timeA = parseDate(a && a.created_at);
+          var timeB = parseDate(b && b.created_at);
+          var timestampA = timeA ? timeA.getTime() : 0;
+          var timestampB = timeB ? timeB.getTime() : 0;
+          if (timestampA !== timestampB) return timestampB - timestampA;
+          return Number(b && b.id || 0) - Number(a && a.id || 0);
+        });
+      }
+
       function populateChildren(data) {
         var switcher = document.getElementById("childSwitcher");
         switcher.innerHTML = "";
@@ -500,6 +511,7 @@
       }
 
       function render(items) {
+        items = sortTimelineItems(items);
         document.getElementById("emptyState").style.display = items.length ? "none" : "grid";
         document.getElementById("timeline").innerHTML = items.map(function (it) {
           var date = formatDate(it.created_at);
