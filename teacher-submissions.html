@@ -137,21 +137,22 @@
  document.getElementById("subCount").textContent = "";
  return;
  }
- var waitCount = subs.filter(function (s) { return s.feedback_count === 0; }).length;
+ var waitCount = subs.filter(function (s) { return Number(s.feedback_count || 0) === 0; }).length;
  document.getElementById("subCount").textContent = "共 " + subs.length + " 份" +
  (waitCount > 0 ? " · " + waitCount + " 待点评" : "");
 
  list.innerHTML = subs.map(function (s) {
+ var feedbackCount = Number(s.feedback_count || 0);
  var h = '<div class="sub-item">';
  h += '<div class="sub-head"><div><p class="sub-child">' + esc(s.child_name) +
  (s.grade ? " · " + esc(s.grade) : "") + '</p>';
  h += '<p class="sub-task">' + esc(s.title) + " · " + formatDateTime(s.created_at) + '</p></div>';
- h += s.feedback_count > 0
+ h += feedbackCount > 0
  ? '<span class="badge-done">已点评</span>'
  : '<span class="badge-wait">待点评</span>';
  h += '</div><div class="sub-content">' + esc(s.content) + '</div>';
  h += renderAttachments(s.attachments);
- if (s.feedback_count === 0) {
+ if (feedbackCount === 0) {
  h += '<div class="quick-btns">';
  QUICK_COMMENTS.forEach(function (c) {
  h += '<button type="button" class="quick-btn" data-sid="' + s.id + '" data-c="' + esc(c) + '">' + esc(c) + '</button>';

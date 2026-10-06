@@ -2913,6 +2913,9 @@ async function handleApi(req, res, pathname, query) {
       "FROM submissions s JOIN children c ON c.id = s.child_id JOIN tasks t ON t.id = s.task_id " +
       "WHERE s.status = 'submitted' AND " + realStudentWhere("c") + " ORDER BY s.id DESC LIMIT 50"
     ).all(...demoParams(2));
+    submissions.forEach(function (submission) {
+      submission.feedback_count = Number(submission.feedback_count || 0);
+    });
     return sendJson(res, 200, { task, weekStart, submissions });
   }
 

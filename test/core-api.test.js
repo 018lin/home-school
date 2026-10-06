@@ -216,7 +216,12 @@ test("core parent and teacher workflow remains compatible", async function () {
 
   result = await request("/api/teacher/overview", { token: teacherToken });
   assert.equal(result.response.status, 200);
-  assert.ok(result.data.submissions.some(function (item) { return Number(item.id) === submissionId; }));
+  const overviewSubmission = result.data.submissions.find(function (item) {
+    return Number(item.id) === submissionId;
+  });
+  assert.ok(overviewSubmission);
+  assert.equal(typeof overviewSubmission.feedback_count, "number");
+  assert.equal(overviewSubmission.feedback_count, 1);
 
   result = await request("/api/teacher/ai-chat", {
     method: "POST",
