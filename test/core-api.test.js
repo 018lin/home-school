@@ -3,6 +3,7 @@ const { after, before, test } = require("node:test");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { types } = require("pg");
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "home-school-test-"));
 process.env.DATA_DIR = dataDir;
@@ -66,6 +67,11 @@ test("database transaction rolls back failed writes", async function () {
   );
   const afterCount = Number((await app.db.prepare("SELECT COUNT(*) AS n FROM users").get()).n);
   assert.equal(afterCount, beforeCount);
+});
+
+test("postgres local timestamps are not shifted before JSON serialization", function () {
+  const parseTimestamp = types.getTypeParser(1114, "text");
+  assert.equal(parseTimestamp("2026-10-06 20:15:30"), "2026-10-06 20:15:30");
 });
 
 test("core parent and teacher workflow remains compatible", async function () {

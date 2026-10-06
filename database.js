@@ -1,7 +1,12 @@
 const fs = require("fs");
 const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
-const { Pool } = require("pg");
+const { Pool, types } = require("pg");
+
+// Keep Asia/Shanghai TIMESTAMP columns as local strings so clients do not apply an extra UTC shift.
+types.setTypeParser(1114, function (value) {
+  return value;
+});
 
 const SERIAL_TABLES = new Set([
   "users",
