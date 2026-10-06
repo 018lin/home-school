@@ -63,7 +63,81 @@
  .top-actions { margin-left: auto; }
  }
  @media (max-width: 520px) { .row2 { grid-template-columns: 1fr; } }
- </style><link rel="stylesheet" href="css/refined-ui.css">
+ </style><link rel="stylesheet" href="css/refined-ui.css"><style>
+ body:has(#publishBtn) {
+ --teacher-primary: #0f766e; --teacher-primary-dark: #115e59;
+ --teacher-ink: #0b1220; --teacher-muted: #556273; --teacher-line: #d9e2e7;
+ --teacher-canvas: #f5f7f8; background: var(--teacher-canvas) !important;
+ }
+ body:has(#publishBtn) .publish-panel {
+ border-color: #e5e7eb !important; box-shadow: 0 14px 32px rgba(15,23,42,0.055) !important;
+ }
+ body:has(#publishBtn) .request-panel {
+ background: #f9fafb !important; border-color: #e5e7eb !important; box-shadow: none !important;
+ }
+ body:has(#publishBtn) #parentRequestList { display: grid !important; gap: 16px !important; }
+ body:has(#publishBtn) .parent-request-item {
+ padding: 18px !important; border-color: #e5e7eb !important; border-radius: 12px !important;
+ background: #fff !important; box-shadow: 0 10px 24px rgba(15,23,42,0.06) !important;
+ }
+ body:has(#publishBtn) .parent-request-item + .parent-request-item { margin-top: 0 !important; }
+ body:has(#publishBtn) textarea {
+ min-height: 112px !important; overflow: hidden !important; resize: none !important; scrollbar-width: none;
+ }
+ body:has(#publishBtn) textarea::-webkit-scrollbar { display: none; }
+ body:has(#publishBtn) .parent-request-original {
+ margin-top: 14px !important; padding: 14px !important; background: #f8fafc !important;
+ border-color: #e6edf3 !important;
+ }
+ body:has(#publishBtn) .parent-request-original b,
+ body:has(#publishBtn) .ai-request-plan-head b {
+ color: #0b1220 !important; font-size: 13px !important; font-weight: 650 !important;
+ }
+ body:has(#publishBtn) .parent-request-original p {
+ margin-top: 8px !important; color: #374151 !important; font-size: 14px !important;
+ line-height: 1.6 !important;
+ }
+ body:has(#publishBtn) .ai-request-plan {
+ margin-top: 14px !important; padding: 14px !important; background: #ffffff !important;
+ border: 1px solid #d8e8e5 !important; border-radius: 10px !important; color: #374151 !important;
+ font-size: 14px !important; line-height: 1.6 !important;
+ }
+ body:has(#publishBtn) .ai-request-plan-head {
+ display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px !important;
+ color: #0b1220 !important;
+ }
+ body:has(#publishBtn) .ai-request-plan-head span {
+ color: #0f766e !important; font-size: 12px !important; font-weight: 650 !important;
+ }
+ body:has(#publishBtn) .ai-request-plan-body {
+ margin-top: 10px !important; color: #374151 !important; font-size: 14px !important; line-height: 1.6 !important;
+ }
+ body:has(#publishBtn) .ai-request-plan-body p { margin-top: 8px !important; }
+ body:has(#publishBtn) .ai-request-plan.is-collapsed .ai-request-plan-body {
+ display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+ overflow: hidden !important;
+ }
+ body:has(#publishBtn) .ai-request-toggle {
+ width: auto !important; min-height: 32px !important; margin-top: 10px !important; padding: 0 11px !important;
+ border: 1px solid #b9d9d4 !important; border-radius: 8px !important; background: #fff !important;
+ color: #0f766e !important; font-size: 13px !important; font-weight: 650 !important; cursor: pointer;
+ }
+ body:has(#publishBtn) .ai-risk { color: #b42318 !important; font-weight: 650 !important; }
+ body:has(#publishBtn) .request-sticky-actions {
+ position: sticky !important; bottom: 16px !important; z-index: 5 !important; margin: 20px -4px -4px !important;
+ padding: 12px !important; border: 1px solid rgba(217,226,231,0.94) !important; border-radius: 12px !important;
+ background: rgba(255,255,255,0.94) !important; box-shadow: 0 12px 28px rgba(15,23,42,0.12) !important;
+ backdrop-filter: blur(12px);
+ }
+ body:has(#publishBtn) .request-actions {
+ display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; margin-top: 0 !important;
+ }
+ body:has(#publishBtn) .request-sticky-actions .form-msg { margin-top: 8px !important; }
+ @media (max-width: 640px) {
+ body:has(#publishBtn) .request-actions { grid-template-columns: 1fr !important; }
+ body:has(#publishBtn) .request-sticky-actions { bottom: 10px !important; }
+ }
+ </style>
 </head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-ai.html">AI 洞察</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link active" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><section class="publish-panel"><p class="panel-title">发布本周亲子任务</p><p class="panel-sub">从模板带出任务卡，老师可微调后发布给全班。</p><div class="field"><label>任务模板</label><select id="templateSelect"></select></div><div class="field"><label>任务标题</label><input id="pubTitle" maxlength="50"></div><div class="row2"><div class="field"><label>任务类型</label><select id="pubType"><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option>家务实践</option><option>运动健身</option><option>观察探究</option></select></div><div class="field"><label>预计时长</label><input id="pubDuration" type="number" min="5" max="60"></div></div><div class="row2"><div class="field"><label>难度</label><select id="pubDifficulty"><option>简单</option><option selected>普通</option><option>进阶</option></select></div><div class="field"><label>所需材料</label><input id="pubMaterials" maxlength="80"></div></div><div class="field"><label>目标</label><input id="pubGoal" maxlength="100"></div><div class="field"><label>亲子步骤</label><textarea id="pubSteps"></textarea></div><div class="field"><label>对话提示</label><input id="pubTips" maxlength="100"></div><div class="field"><label>提交要求</label><input id="pubSubmit" maxlength="100"></div><div class="field"><label>替代方案</label><input id="pubFallback" maxlength="120"></div><button class="btn-primary" id="publishBtn">发布给全班</button><p class="form-msg" id="publishMsg"></p></section><section class="card request-panel"><div class="request-panel-head"><div><p class="panel-title">家长自主定制任务</p><p class="panel-sub">查看家长本周想和孩子一起做的任务，可修改后同意实施或拒绝并评价。</p></div><span class="request-count" id="requestCount"></span></div><div id="parentRequestList"><p class="empty-text">正在加载家长提议…</p></div></section></main><script src="js/api.js"></script><script>
  (function () {
  "use strict";
@@ -78,6 +152,20 @@
  localStorage.removeItem("auth");
  window.location.href = "index.html";
  });
+
+ function fitTextarea(textarea) {
+ if (!textarea) return;
+ textarea.style.height = "auto";
+ textarea.style.height = textarea.scrollHeight + "px";
+ }
+
+ function fitAllTextareas(root) {
+ Array.prototype.forEach.call((root || document).querySelectorAll("textarea"), fitTextarea);
+ }
+
+ document.addEventListener("input", function (e) {
+ if (e.target && e.target.matches("textarea")) fitTextarea(e.target);
+ }, true);
 
  var TASK_TEMPLATES = [
  { title: "亲子共读：共读一本好书", type: "阅读", duration: 20, difficulty: "普通", materials: "一本课外书", goal: "营造家庭阅读氛围，培养孩子表达与思考能力", steps: "1. 和孩子一起选一本想读的书\n2. 安静共读 20 分钟\n3. 分享各自最喜欢的段落\n4. 讨论故事中的道理", tips: "你觉得这个故事里，如果你是主角会怎么做？", submit: "拍照、语音或写一段读后感", fallback: "时间有限时可共读一个章节，祖辈陪伴可改为听孩子讲故事" },
@@ -103,6 +191,7 @@
  document.getElementById("pubTips").value = tpl.tips;
  document.getElementById("pubSubmit").value = tpl.submit;
  document.getElementById("pubFallback").value = tpl.fallback;
+ fitTextarea(document.getElementById("pubSteps"));
  }
 
  var templateSelect = document.getElementById("templateSelect");
@@ -210,13 +299,14 @@
   h += (req.parent_expectation || req.goal ? '<p>家长期待：' + esc(req.parent_expectation || req.goal) + '</p>' : '');
   h += (req.family_constraints ? '<p>执行限制：' + esc(req.family_constraints) + '</p>' : '') + '</div>';
   if (task.plan && task.plan.analysisSummary) {
-  h += '<div class="ai-request-plan"><div class="ai-request-plan-head"><b>AI 分析草案</b><span>' +
+  h += '<div class="ai-request-plan is-collapsed"><div class="ai-request-plan-head"><b>AI 分析报告</b><span>' +
     esc(req.ai_status === "ai" ? "AI 已生成" : "基础规则兜底") + '</span></div>';
+  h += '<div class="ai-request-plan-body">';
   h += '<p>' + esc(task.plan.analysisSummary) + '</p>';
   if (task.plan.supportGoal) h += '<p><b>支持目标：</b>' + esc(task.plan.supportGoal) + '</p>';
   if (task.plan.boundaryNote) h += '<p><b>边界提示：</b>' + esc(task.plan.boundaryNote) + '</p>';
   if (task.plan.needsProfessionalReview) h += '<p class="ai-risk">包含需要进一步人工了解的风险信号，请谨慎决定是否适合用家庭任务处理。</p>';
-  h += '</div>';
+  h += '</div><button class="ai-request-toggle" type="button" aria-expanded="false">展开详情</button></div>';
   }
  if (req.status === "pending") {
  h += '<div class="field"><label>任务标题</label><input class="pr-title" maxlength="80" value="' + esc(task.title) + '"' + disabled + '></div>';
@@ -228,13 +318,14 @@
  h += '<div class="field"><label>提交要求</label><input class="pr-submit" maxlength="200" value="' + esc(task.submit) + '"' + disabled + '></div>';
   h += '<div class="field"><label>替代方案</label><input class="pr-fallback" maxlength="240" value="' + esc(task.fallback) + '"' + disabled + '></div>';
  h += '<div class="field"><label>教师评价</label><textarea class="pr-comment" placeholder="同意时可写鼓励，拒绝时需说明原因或替代建议"></textarea></div>';
- h += '<div class="request-actions"><button class="btn-confirm pr-approve" type="button">同意实施</button><button class="btn-cancel pr-reject" type="button">拒绝并评价</button></div><p class="form-msg pr-msg"></p>';
+ h += '<div class="request-sticky-actions"><div class="request-actions"><button class="btn-confirm pr-approve" type="button">同意实施</button><button class="btn-cancel pr-reject" type="button">拒绝并评价</button></div><p class="form-msg pr-msg"></p></div>';
  } else {
  h += '<div class="parent-request-original"><b>教师评价</b><p>' + esc(req.teacher_comment || "暂无") + '</p>' + (req.task_title ? '<p>已生成任务：' + esc(req.task_title) + '</p>' : '') + '</div>';
  }
  h += '</article>';
  return h;
  }).join("");
+ fitAllTextareas(list);
  }
 
  function loadParentRequests() {
@@ -285,6 +376,16 @@
  }
 
  document.getElementById("parentRequestList").addEventListener("click", function (e) {
+ var toggle = e.target.closest(".ai-request-toggle");
+ if (toggle) {
+ var plan = toggle.closest(".ai-request-plan");
+ var expanded = !plan.classList.contains("is-expanded");
+ plan.classList.toggle("is-expanded", expanded);
+ plan.classList.toggle("is-collapsed", !expanded);
+ toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+ toggle.textContent = expanded ? "收起详情" : "展开详情";
+ return;
+ }
  var approve = e.target.closest(".pr-approve");
  var reject = e.target.closest(".pr-reject");
  if (!approve && !reject) return;
