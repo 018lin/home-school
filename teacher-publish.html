@@ -133,12 +133,80 @@
  display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; margin-top: 0 !important;
  }
  body:has(#publishBtn) .request-sticky-actions .form-msg { margin-top: 8px !important; }
+ body:has(#publishBtn) #parentRequestList {
+ display: grid !important; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+ gap: 12px !important;
+ }
+ body:has(#publishBtn) .request-thumb {
+ width: 100% !important; min-height: 154px !important; padding: 14px !important;
+ border: 1px solid #e5e7eb !important; border-radius: 12px !important; background: #fff !important;
+ box-shadow: 0 10px 24px rgba(15,23,42,0.055) !important; color: inherit !important;
+ text-align: left !important; cursor: pointer !important; display: flex !important; flex-direction: column !important;
+ gap: 10px !important; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease !important;
+ }
+ body:has(#publishBtn) .request-thumb:hover,
+ body:has(#publishBtn) .request-thumb:focus-visible {
+ border-color: #b9d9d4 !important; box-shadow: 0 14px 28px rgba(15,118,110,0.12) !important;
+ transform: translateY(-1px) !important; outline: none !important;
+ }
+ body:has(#publishBtn) .request-thumb-top {
+ display: flex !important; align-items: flex-start !important; justify-content: space-between !important;
+ gap: 10px !important;
+ }
+ body:has(#publishBtn) .request-thumb-name {
+ color: #0b1220 !important; font-size: 15px !important; font-weight: 650 !important; line-height: 1.35 !important;
+ }
+ body:has(#publishBtn) .request-thumb-meta,
+ body:has(#publishBtn) .request-thumb-desc,
+ body:has(#publishBtn) .request-thumb-foot {
+ color: #607086 !important; font-size: 12px !important; line-height: 1.5 !important;
+ }
+ body:has(#publishBtn) .request-thumb-title {
+ color: #172033 !important; font-size: 14px !important; font-weight: 650 !important; line-height: 1.45 !important;
+ display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden !important;
+ }
+ body:has(#publishBtn) .request-thumb-desc {
+ display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden !important;
+ }
+ body:has(#publishBtn) .request-thumb-foot {
+ margin-top: auto !important; display: flex !important; align-items: center !important; justify-content: space-between !important;
+ gap: 8px !important;
+ }
+ body:has(#publishBtn) .request-thumb-link { color: #0f766e !important; font-weight: 650 !important; }
+ .request-modal-mask {
+ position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+ padding: 28px; background: rgba(15,23,42,0.42); backdrop-filter: blur(6px);
+ }
+ .request-modal-mask.show { display: flex; }
+ .request-modal-shell {
+ width: min(860px, 100%); max-height: min(88vh, 860px); display: flex; flex-direction: column;
+ background: #fff; border: 1px solid #dbe4ef; border-radius: 14px; box-shadow: 0 24px 80px rgba(15,23,42,0.24);
+ overflow: hidden;
+ }
+ .request-modal-head {
+ display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+ padding: 20px 22px 16px; border-bottom: 1px solid #e5e7eb; background: #fbfdff;
+ }
+ .request-modal-head h2 { margin: 0; color: #0b1220; font-size: 18px; line-height: 1.35; }
+ .request-modal-sub { margin-top: 4px; color: #607086; font-size: 13px; line-height: 1.5; }
+ .request-modal-close {
+ width: 36px; height: 36px; border: 1px solid #d9e2e7; border-radius: 8px; background: #fff;
+ color: #607086; font-size: 22px; line-height: 1; cursor: pointer;
+ }
+ .request-modal-close:hover { color: #0f766e; border-color: #b9d9d4; }
+ .request-modal-body { padding: 20px 22px 24px; overflow: auto; }
+ .request-modal-body .parent-request-item { box-shadow: none !important; border-color: #e5e7eb !important; }
+ body.request-modal-open { overflow: hidden; }
  @media (max-width: 640px) {
  body:has(#publishBtn) .request-actions { grid-template-columns: 1fr !important; }
  body:has(#publishBtn) .request-sticky-actions { bottom: 10px !important; }
+ .request-modal-mask { padding: 12px; align-items: stretch; }
+ .request-modal-shell { max-height: calc(100vh - 24px); }
+ .request-modal-head { padding: 16px; }
+ .request-modal-body { padding: 16px; }
  }
- </style>
-</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-ai.html">AI 洞察</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link active" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><section class="publish-panel"><p class="panel-title">发布本周亲子任务</p><p class="panel-sub">从模板带出任务卡，老师可微调后发布给全班。</p><div class="field"><label>任务模板</label><select id="templateSelect"></select></div><div class="field"><label>任务标题</label><input id="pubTitle" maxlength="50"></div><div class="row2"><div class="field"><label>任务类型</label><select id="pubType"><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option>家务实践</option><option>运动健身</option><option>观察探究</option></select></div><div class="field"><label>预计时长</label><input id="pubDuration" type="number" min="5" max="60"></div></div><div class="row2"><div class="field"><label>难度</label><select id="pubDifficulty"><option>简单</option><option selected>普通</option><option>进阶</option></select></div><div class="field"><label>所需材料</label><input id="pubMaterials" maxlength="80"></div></div><div class="field"><label>目标</label><input id="pubGoal" maxlength="100"></div><div class="field"><label>亲子步骤</label><textarea id="pubSteps"></textarea></div><div class="field"><label>对话提示</label><input id="pubTips" maxlength="100"></div><div class="field"><label>提交要求</label><input id="pubSubmit" maxlength="100"></div><div class="field"><label>替代方案</label><input id="pubFallback" maxlength="120"></div><button class="btn-primary" id="publishBtn">发布给全班</button><p class="form-msg" id="publishMsg"></p></section><section class="card request-panel"><div class="request-panel-head"><div><p class="panel-title">家长自主定制任务</p><p class="panel-sub">查看家长本周想和孩子一起做的任务，可修改后同意实施或拒绝并评价。</p></div><span class="request-count" id="requestCount"></span></div><div id="parentRequestList"><p class="empty-text">正在加载家长提议…</p></div></section></main><script src="js/api.js"></script><script>
+</style>
+</head><body><header class="topbar"><span class="brand">教师工作台</span><nav class="teacher-nav" aria-label="教师端导航"><a class="nav-link" href="teacher.html">全局报告</a><a class="nav-link" href="teacher-ai.html">AI 洞察</a><a class="nav-link" href="teacher-class-overview.html">班级概览</a><a class="nav-link active" href="teacher-publish.html">发布任务</a><a class="nav-link" href="teacher-submissions.html">学生提交</a><a class="nav-link" href="teacher-students.html">学生档案</a></nav><div class="top-actions"><span class="user-name" id="userName"></span><button class="btn-logout" id="logoutBtn">退出登录</button></div></header><main class="main"><section class="publish-panel"><p class="panel-title">发布本周亲子任务</p><p class="panel-sub">从模板带出任务卡，老师可微调后发布给全班。</p><div class="field"><label>任务模板</label><select id="templateSelect"></select></div><div class="field"><label>任务标题</label><input id="pubTitle" maxlength="50"></div><div class="row2"><div class="field"><label>任务类型</label><select id="pubType"><option>阅读</option><option>习惯养成</option><option>学科应用</option><option>情绪社交</option><option>家务实践</option><option>运动健身</option><option>观察探究</option></select></div><div class="field"><label>预计时长</label><input id="pubDuration" type="number" min="5" max="60"></div></div><div class="row2"><div class="field"><label>难度</label><select id="pubDifficulty"><option>简单</option><option selected>普通</option><option>进阶</option></select></div><div class="field"><label>所需材料</label><input id="pubMaterials" maxlength="80"></div></div><div class="field"><label>目标</label><input id="pubGoal" maxlength="100"></div><div class="field"><label>亲子步骤</label><textarea id="pubSteps"></textarea></div><div class="field"><label>对话提示</label><input id="pubTips" maxlength="100"></div><div class="field"><label>提交要求</label><input id="pubSubmit" maxlength="100"></div><div class="field"><label>替代方案</label><input id="pubFallback" maxlength="120"></div><button class="btn-primary" id="publishBtn">发布给全班</button><p class="form-msg" id="publishMsg"></p></section><section class="card request-panel"><div class="request-panel-head"><div><p class="panel-title">家长自主定制任务</p><p class="panel-sub">右侧按提交项目展示缩略卡，点击卡片查看详情并处理。</p></div><span class="request-count" id="requestCount"></span></div><div id="parentRequestList"><p class="empty-text">正在加载家长提议…</p></div></section></main><div class="request-modal-mask" id="requestModal" aria-hidden="true"><div class="request-modal-shell" role="dialog" aria-modal="true" aria-labelledby="requestModalTitle"><div class="request-modal-head"><div><h2 id="requestModalTitle">提交项目详情</h2><p class="request-modal-sub" id="requestModalSub">查看家长提交内容、AI 建议与审核表单。</p></div><button class="request-modal-close" id="requestModalClose" type="button" aria-label="关闭详情">×</button></div><div class="request-modal-body" id="requestModalBody"></div></div></div><script src="js/api.js"></script><script>
  (function () {
  "use strict";
  requireAuth();
@@ -276,18 +344,30 @@
   };
  }
 
- function renderParentRequests(requests) {
- var list = document.getElementById("parentRequestList");
- var count = document.getElementById("requestCount");
- var pending = requests.filter(function (r) { return r.status === "pending"; }).length;
- count.textContent = requests.length ? (pending ? pending + " 待处理" : "已处理") : "";
- if (!requests.length) {
- list.innerHTML = '<p class="empty-text">暂无家长自主定制任务提议</p>';
- return;
+ var parentRequests = [];
+ var activeRequestId = null;
+
+ function requestPreviewText(req) {
+ return req.observed_behavior || req.description || req.context || req.parent_expectation || req.goal || "家长已提交一项亲子任务提议";
  }
- list.innerHTML = requests.map(function (req) {
+
+ function renderRequestThumb(req) {
  var task = defaultTaskFromRequest(req);
- var disabled = req.status === "pending" ? "" : " disabled";
+ var meta = [(req.grade || ""), (req.parent_name || "家长")].filter(Boolean).join(" · ");
+ var foot = req.concern_category || task.type || "提交项目";
+ var h = '<button class="request-thumb" type="button" data-id="' + req.id + '">';
+ h += '<div class="request-thumb-top"><div><p class="request-thumb-name">' + esc(req.child_name || "学生") + '</p>';
+ h += '<p class="request-thumb-meta">' + esc(meta || "家庭提议") + '</p></div>';
+ h += '<em class="request-status ' + esc(req.status) + '">' + requestStatusText(req.status) + '</em></div>';
+ h += '<p class="request-thumb-title">' + esc(task.title) + '</p>';
+ h += '<p class="request-thumb-desc">' + esc(requestPreviewText(req)) + '</p>';
+ h += '<div class="request-thumb-foot"><span>' + esc(foot) + '</span><span class="request-thumb-link">查看详情</span></div>';
+ h += '</button>';
+ return h;
+ }
+
+ function renderRequestDetail(req) {
+ var task = defaultTaskFromRequest(req);
  var h = '<article class="parent-request-item" data-id="' + req.id + '">';
  h += '<div class="parent-request-top"><div><strong>' + esc(req.child_name || "学生") + '</strong><span>' + esc((req.grade || "") + " · " + (req.parent_name || "家长")) + '</span></div><em class="request-status ' + esc(req.status) + '">' + requestStatusText(req.status) + '</em></div>';
   h += '<div class="parent-request-original"><b>家长观察</b>';
@@ -309,14 +389,14 @@
   h += '</div><button class="ai-request-toggle" type="button" aria-expanded="false">展开详情</button></div>';
   }
  if (req.status === "pending") {
- h += '<div class="field"><label>任务标题</label><input class="pr-title" maxlength="80" value="' + esc(task.title) + '"' + disabled + '></div>';
-  h += '<div class="row2"><div class="field"><label>任务类型</label><select class="pr-type"' + disabled + '>' + taskTypeOptions(task.type) + '</select></div><div class="field"><label>预计时长</label><input class="pr-duration" type="number" min="5" max="90" value="' + task.duration + '"' + disabled + '></div></div>';
-  h += '<div class="row2"><div class="field"><label>难度</label><select class="pr-difficulty"' + disabled + '><option' + (task.difficulty === "简单" ? ' selected' : '') + '>简单</option><option' + (task.difficulty === "普通" ? ' selected' : '') + '>普通</option><option' + (task.difficulty === "进阶" ? ' selected' : '') + '>进阶</option></select></div><div class="field"><label>所需材料</label><input class="pr-materials" maxlength="180" value="' + esc(task.materials) + '"' + disabled + '></div></div>';
- h += '<div class="field"><label>目标</label><input class="pr-goal" maxlength="180" value="' + esc(task.goal) + '"' + disabled + '></div>';
- h += '<div class="field"><label>实施步骤</label><textarea class="pr-steps"' + disabled + '>' + esc(task.steps) + '</textarea></div>';
- h += '<div class="field"><label>对话提示</label><input class="pr-tips" maxlength="200" value="' + esc(task.tips) + '"' + disabled + '></div>';
- h += '<div class="field"><label>提交要求</label><input class="pr-submit" maxlength="200" value="' + esc(task.submit) + '"' + disabled + '></div>';
-  h += '<div class="field"><label>替代方案</label><input class="pr-fallback" maxlength="240" value="' + esc(task.fallback) + '"' + disabled + '></div>';
+ h += '<div class="field"><label>任务标题</label><input class="pr-title" maxlength="80" value="' + esc(task.title) + '"></div>';
+  h += '<div class="row2"><div class="field"><label>任务类型</label><select class="pr-type">' + taskTypeOptions(task.type) + '</select></div><div class="field"><label>预计时长</label><input class="pr-duration" type="number" min="5" max="90" value="' + task.duration + '"></div></div>';
+  h += '<div class="row2"><div class="field"><label>难度</label><select class="pr-difficulty"><option' + (task.difficulty === "简单" ? ' selected' : '') + '>简单</option><option' + (task.difficulty === "普通" ? ' selected' : '') + '>普通</option><option' + (task.difficulty === "进阶" ? ' selected' : '') + '>进阶</option></select></div><div class="field"><label>所需材料</label><input class="pr-materials" maxlength="180" value="' + esc(task.materials) + '"></div></div>';
+ h += '<div class="field"><label>目标</label><input class="pr-goal" maxlength="180" value="' + esc(task.goal) + '"></div>';
+ h += '<div class="field"><label>实施步骤</label><textarea class="pr-steps">' + esc(task.steps) + '</textarea></div>';
+ h += '<div class="field"><label>对话提示</label><input class="pr-tips" maxlength="200" value="' + esc(task.tips) + '"></div>';
+ h += '<div class="field"><label>提交要求</label><input class="pr-submit" maxlength="200" value="' + esc(task.submit) + '"></div>';
+  h += '<div class="field"><label>替代方案</label><input class="pr-fallback" maxlength="240" value="' + esc(task.fallback) + '"></div>';
  h += '<div class="field"><label>教师评价</label><textarea class="pr-comment" placeholder="同意时可写鼓励，拒绝时需说明原因或替代建议"></textarea></div>';
  h += '<div class="request-sticky-actions"><div class="request-actions"><button class="btn-confirm pr-approve" type="button">同意实施</button><button class="btn-cancel pr-reject" type="button">拒绝并评价</button></div><p class="form-msg pr-msg"></p></div>';
  } else {
@@ -324,8 +404,47 @@
  }
  h += '</article>';
  return h;
- }).join("");
- fitAllTextareas(list);
+ }
+
+ function renderParentRequests(requests) {
+ var list = document.getElementById("parentRequestList");
+ var count = document.getElementById("requestCount");
+ parentRequests = requests;
+ var pending = requests.filter(function (r) { return r.status === "pending"; }).length;
+ count.textContent = requests.length ? (requests.length + " 项" + (pending ? " · " + pending + " 待处理" : " · 已处理")) : "";
+ if (!requests.length) {
+ list.innerHTML = '<p class="empty-text">暂无家长自主定制任务提议</p>';
+ return;
+ }
+ list.innerHTML = requests.map(renderRequestThumb).join("");
+ }
+
+ function findRequest(id) {
+ id = Number(id);
+ return parentRequests.find(function (req) { return Number(req.id) === id; });
+ }
+
+ function openRequestModal(id) {
+ var req = findRequest(id);
+ if (!req) return;
+ activeRequestId = Number(req.id);
+ document.getElementById("requestModalTitle").textContent = (req.child_name || "学生") + "的提交项目详情";
+ document.getElementById("requestModalSub").textContent = (req.grade || "班级") + " · " + (req.parent_name || "家长") + " · " + requestStatusText(req.status);
+ var body = document.getElementById("requestModalBody");
+ body.innerHTML = renderRequestDetail(req);
+ fitAllTextareas(body);
+ document.getElementById("requestModal").classList.add("show");
+ document.getElementById("requestModal").setAttribute("aria-hidden", "false");
+ document.body.classList.add("request-modal-open");
+ document.getElementById("requestModalClose").focus();
+ }
+
+ function closeRequestModal() {
+ activeRequestId = null;
+ document.getElementById("requestModal").classList.remove("show");
+ document.getElementById("requestModal").setAttribute("aria-hidden", "true");
+ document.body.classList.remove("request-modal-open");
+ document.getElementById("requestModalBody").innerHTML = "";
  }
 
  function loadParentRequests() {
@@ -362,7 +481,10 @@
               fallbackPlan: item.querySelector(".pr-fallback").value.trim()
  }
  }).then(function (res) {
- if (res.ok) loadParentRequests();
+ if (res.ok) {
+ closeRequestModal();
+ loadParentRequests();
+ }
  else {
  buttons.forEach(function (btn) { btn.disabled = false; });
  msg.style.color = "#dc2626";
@@ -376,6 +498,12 @@
  }
 
  document.getElementById("parentRequestList").addEventListener("click", function (e) {
+ var card = e.target.closest(".request-thumb");
+ if (!card) return;
+ openRequestModal(card.getAttribute("data-id"));
+ });
+
+ document.getElementById("requestModalBody").addEventListener("click", function (e) {
  var toggle = e.target.closest(".ai-request-toggle");
  if (toggle) {
  var plan = toggle.closest(".ai-request-plan");
@@ -391,6 +519,14 @@
  if (!approve && !reject) return;
  var item = e.target.closest(".parent-request-item");
  reviewParentRequest(item, approve ? "approved" : "rejected");
+ });
+
+ document.getElementById("requestModalClose").addEventListener("click", closeRequestModal);
+ document.getElementById("requestModal").addEventListener("click", function (e) {
+ if (e.target === this) closeRequestModal();
+ });
+ document.addEventListener("keydown", function (e) {
+ if (e.key === "Escape" && document.getElementById("requestModal").classList.contains("show")) closeRequestModal();
  });
 
  loadParentRequests();
