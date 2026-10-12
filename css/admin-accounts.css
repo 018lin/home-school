@@ -19,6 +19,7 @@
 .identity { display: inline-flex; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
 .identity.teacher { color: #075985; background: #e0f2fe; }
 .identity.student { color: #166534; background: #dcfce7; }
+.identity.parent { color: #9a3412; background: #ffedd5; }
 .profile-summary { max-width: 260px; overflow: hidden; color: var(--admin-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .edit-button { padding: 5px 8px; border: 0; color: var(--admin-blue); background: transparent; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .edit-button:hover { text-decoration: underline; }
@@ -50,5 +51,6 @@
 .student-only { display: none; }
 .accounts-page.student-form .teacher-only { display: none; }
 .accounts-page.student-form .student-only { display: block; }
+.accounts-page.parent-form .teacher-only, .accounts-page.parent-form .student-only { display: none; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
 @media (max-width: 760px) { .accounts-heading { display: block; } .accounts-heading .primary-action { margin-top: 18px; } .account-toolbar { align-items: stretch; flex-wrap: wrap; gap: 10px; } .search-field { order: 3; flex-basis: 100%; } .result-count { margin-left: auto; align-self: center; } .account-table-panel { border-radius: 12px; } .account-table th, .account-table td { padding-left: 14px; padding-right: 14px; } .account-modal { max-height: calc(100vh - 24px); padding: 20px 16px; } .form-grid { grid-template-columns: 1fr; } .form-field.full { grid-column: auto; } }

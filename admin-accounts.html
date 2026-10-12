@@ -23,7 +23,7 @@
       <div>
         <span class="eyebrow">系统管理 / 账号与档案</span>
         <h1 id="accountsTitle">账号管理</h1>
-        <p>统一注册教师和学生账号，并持续完善他们的基础信息。</p>
+        <p>统一注册教师、学生和家长账号，并持续完善他们的基础信息。</p>
       </div>
       <button class="primary-action" id="addAccountBtn" type="button">＋ 新增账号</button>
     </section>
@@ -33,6 +33,7 @@
         <button class="segment active" data-filter="all" role="tab" type="button">全部账号</button>
         <button class="segment" data-filter="teacher" role="tab" type="button">教师</button>
         <button class="segment" data-filter="student" role="tab" type="button">学生</button>
+        <button class="segment" data-filter="parent" role="tab" type="button">家长</button>
       </div>
       <label class="search-field"><span class="sr-only">搜索账号</span><input id="accountSearch" type="search" placeholder="搜索姓名、账号或年级" autocomplete="off"></label>
       <span class="result-count" id="resultCount">正在同步…</span>
@@ -53,7 +54,7 @@
       <div class="modal-header"><div><span class="eyebrow">账号目录</span><h2 id="modalTitle">新增账号</h2></div><button class="icon-button" id="closeModalBtn" type="button" aria-label="关闭">×</button></div>
       <p class="form-status" id="formStatus" aria-live="polite"></p>
       <form id="accountForm" novalidate>
-        <div class="role-picker" id="rolePicker"><span class="field-label">账号类型</span><div class="segmented"><label><input type="radio" name="role" value="teacher" checked><span>教师</span></label><label><input type="radio" name="role" value="student"><span>学生</span></label></div></div>
+        <div class="role-picker" id="rolePicker"><span class="field-label">账号类型</span><div class="segmented"><label><input type="radio" name="role" value="teacher" checked><span>教师</span></label><label><input type="radio" name="role" value="student"><span>学生</span></label><label><input type="radio" name="role" value="parent"><span>家长</span></label></div></div>
         <div class="form-grid">
           <label class="form-field"><span>登录账号 <b>*</b></span><input id="accountInput" required maxlength="30" autocomplete="username"><small>至少 3 位字符</small></label>
           <label class="form-field"><span>初始密码 <b id="passwordRequired">*</b></span><input id="passwordInput" type="password" maxlength="64" autocomplete="new-password"><small id="passwordHint">至少 6 位字符</small></label>

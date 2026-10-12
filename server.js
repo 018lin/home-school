@@ -2346,6 +2346,11 @@ async function handleApi(req, res, pathname, query) {
         "SELECT id, account, display_name, phone, email, subject, employee_no, created_at " +
         "FROM users WHERE role = 'teacher' ORDER BY id DESC"
       ).all();
+      const parents = await db.prepare(
+        "SELECT u.id, u.account, u.display_name, u.phone, u.email, u.created_at, " +
+        "(SELECT COUNT(*) FROM bindings b WHERE b.user_id = u.id) AS child_count " +
+        "FROM users u WHERE u.role = 'parent' ORDER BY u.id DESC"
+      ).all();
       const students = await db.prepare(
         "SELECT u.id, u.account, u.display_name, u.phone, u.email, u.created_at, " +
         "c.id AS child_id, c.name, c.grade, c.gender, c.age, c.caregiver, c.interests, c.family_note, " +
@@ -2361,6 +2366,9 @@ async function handleApi(req, res, pathname, query) {
       return sendJson(res, 200, {
         generatedAt: new Date().toISOString(),
         teachers: teachers,
+        parents: parents.map(function (row) {
+          return Object.assign({}, row, { child_count: Number(row.child_count || 0) });
+        }),
         students: students.map(function (row) {
           return Object.assign({}, row, { parent_count: Number(row.parent_count || 0) });
         })
@@ -2374,10 +2382,10 @@ async function handleApi(req, res, pathname, query) {
       const account = String(body.account || "").trim();
       const password = String(body.password || "");
       const displayName = String(body.displayName || body.name || "").trim();
-      if (role !== "teacher" && role !== "student") return sendJson(res, 400, { message: "请选择教师或学生账号" });
+      if (role !== "teacher" && role !== "student" && role !== "parent") return sendJson(res, 400, { message: "请选择教师、学生或家长账号" });
       if (account.length < 3) return sendJson(res, 400, { message: "账号至少 3 个字符" });
       if (password.length < 6) return sendJson(res, 400, { message: "密码至少 6 位" });
-      if (!displayName) return sendJson(res, 400, { message: role === "student" ? "请填写学生姓名" : "请填写教师姓名" });
+      if (!displayName) return sendJson(res, 400, { message: role === "student" ? "请填写学生姓名" : role === "parent" ? "请填写家长姓名" : "请填写教师姓名" });
       if (role === "student" && !String(body.grade || "").trim()) return sendJson(res, 400, { message: "请填写学生年级" });
       try {
         const created = await db.transaction(async function (tx) {
@@ -2421,7 +2429,7 @@ async function handleApi(req, res, pathname, query) {
 
     if (req.method === "PUT") {
       const body = await readBody(req);
-      const existing = await db.prepare("SELECT * FROM users WHERE id = ? AND role IN ('teacher','student')").get(accountId);
+      const existing = await db.prepare("SELECT * FROM users WHERE id = ? AND role IN ('teacher','student','parent')").get(accountId);
       if (!existing) return sendJson(res, 404, { message: "账号不存在" });
       const account = String(body.account == null ? existing.account : body.account).trim();
       const displayName = String(body.displayName == null ? existing.display_name : body.displayName).trim();
