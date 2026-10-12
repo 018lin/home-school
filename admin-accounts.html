@@ -2,82 +2,11 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="0; url=admin.html">
   <title>账号管理 · 家校共育</title>
-  <link rel="stylesheet" href="css/refined-ui.css">
-  <link rel="stylesheet" href="css/admin.css">
-  <link rel="stylesheet" href="css/admin-accounts.css">
 </head>
-<body class="admin-page accounts-page">
-  <header class="topbar">
-    <span class="brand">管理员工作台</span>
-    <nav class="teacher-nav" aria-label="管理员导航"></nav>
-    <div class="top-actions">
-      <span class="user-name" id="userName"></span>
-      <button class="btn-logout" id="logoutBtn" type="button">退出登录</button>
-    </div>
-  </header>
-
-  <main class="admin-main">
-    <section class="admin-heading accounts-heading" aria-labelledby="accountsTitle">
-      <div>
-        <span class="eyebrow">系统管理 / 账号与档案</span>
-        <h1 id="accountsTitle">账号管理</h1>
-        <p>统一注册教师、学生和家长账号，并持续完善他们的基础信息。</p>
-      </div>
-      <button class="primary-action" id="addAccountBtn" type="button">＋ 新增账号</button>
-    </section>
-
-    <section class="account-toolbar" aria-label="账号筛选">
-      <div class="segmented" role="tablist" aria-label="账号类型">
-        <button class="segment active" data-filter="all" role="tab" type="button">全部账号</button>
-        <button class="segment" data-filter="teacher" role="tab" type="button">教师</button>
-        <button class="segment" data-filter="student" role="tab" type="button">学生</button>
-        <button class="segment" data-filter="parent" role="tab" type="button">家长</button>
-      </div>
-      <label class="search-field"><span class="sr-only">搜索账号</span><input id="accountSearch" type="search" placeholder="搜索姓名、账号或年级" autocomplete="off"></label>
-      <span class="result-count" id="resultCount">正在同步…</span>
-    </section>
-
-    <section class="account-table-panel">
-      <div class="table-wrap">
-        <table class="account-table">
-          <thead><tr><th>成员</th><th>账号</th><th>身份</th><th>资料摘要</th><th>创建时间</th><th><span class="sr-only">操作</span></th></tr></thead>
-          <tbody id="accountList"><tr><td colspan="6" class="table-state">正在加载账号…</td></tr></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
-
-  <div class="modal-backdrop" id="accountModal" hidden>
-    <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal-header"><div><span class="eyebrow">账号目录</span><h2 id="modalTitle">新增账号</h2></div><button class="icon-button" id="closeModalBtn" type="button" aria-label="关闭">×</button></div>
-      <p class="form-status" id="formStatus" aria-live="polite"></p>
-      <form id="accountForm" novalidate>
-        <div class="role-picker" id="rolePicker"><span class="field-label">账号类型</span><div class="segmented"><label><input type="radio" name="role" value="teacher" checked><span>教师</span></label><label><input type="radio" name="role" value="student"><span>学生</span></label><label><input type="radio" name="role" value="parent"><span>家长</span></label></div></div>
-        <div class="form-grid">
-          <label class="form-field"><span>登录账号 <b>*</b></span><input id="accountInput" required maxlength="30" autocomplete="username"><small>至少 3 位字符</small></label>
-          <label class="form-field"><span>初始密码 <b id="passwordRequired">*</b></span><input id="passwordInput" type="password" maxlength="64" autocomplete="new-password"><small id="passwordHint">至少 6 位字符</small></label>
-          <label class="form-field"><span id="displayNameLabel">教师姓名 <b>*</b></span><input id="displayNameInput" required maxlength="20"></label>
-          <label class="form-field"><span>联系电话</span><input id="phoneInput" maxlength="30" inputmode="tel"></label>
-          <label class="form-field"><span>邮箱</span><input id="emailInput" type="email" maxlength="80"></label>
-          <label class="form-field teacher-only"><span>任教科目</span><input id="subjectInput" maxlength="30" placeholder="如：语文、科学"></label>
-          <label class="form-field teacher-only"><span>工号</span><input id="employeeNoInput" maxlength="30"></label>
-          <label class="form-field student-only"><span>年级 <b>*</b></span><input id="gradeInput" maxlength="20" placeholder="如：三年级"></label>
-          <label class="form-field student-only"><span>性别</span><select id="genderInput"><option value="">未填写</option><option value="男">男</option><option value="女">女</option></select></label>
-          <label class="form-field student-only"><span>年龄</span><input id="ageInput" type="number" min="3" max="20" inputmode="numeric"></label>
-          <label class="form-field student-only"><span>主要照护人</span><input id="caregiverInput" maxlength="30" placeholder="如：妈妈、奶奶"></label>
-          <label class="form-field student-only"><span>兴趣标签</span><input id="interestsInput" maxlength="120" placeholder="如：阅读、观察、足球"></label>
-          <label class="form-field student-only"><span>关联家长账号</span><input id="parentAccountInput" maxlength="30" placeholder="可稍后在家长端绑定"></label>
-          <label class="form-field student-only"><span>家长关系</span><input id="relationInput" maxlength="12" value="家长"></label>
-          <label class="form-field full student-only"><span>家庭备注</span><textarea id="familyNoteInput" rows="3" maxlength="500" placeholder="记录需要被教师了解的家庭情况"></textarea></label>
-        </div>
-        <div class="modal-actions"><button class="secondary-action" id="cancelBtn" type="button">取消</button><button class="primary-action" id="saveBtn" type="submit">保存账号</button></div>
-      </form>
-    </section>
-  </div>
-
-  <script src="js/api.js"></script>
-  <script src="js/admin-accounts.js"></script>
+<body>
+  <script>window.location.replace("admin.html");</script>
+  <p>正在前往账号管理…</p>
 </body>
 </html>
