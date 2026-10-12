@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>成长时间线看板 · 家校共育</title>
+  <link rel="stylesheet" href="css/refined-ui.css">
+  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/admin-timeline.css">
+</head>
+<body class="admin-page admin-timeline-page">
+  <header class="topbar">
+    <span class="brand">管理员工作台</span>
+    <nav class="teacher-nav" aria-label="管理员导航"></nav>
+    <div class="top-actions">
+      <span class="user-name" id="userName"></span>
+      <button class="btn-logout" id="logoutBtn" type="button">退出登录</button>
+    </div>
+  </header>
+
+  <main class="timeline-main">
+    <section class="timeline-heading" aria-labelledby="timelineTitle">
+      <div>
+        <span class="eyebrow">管理员工作台 / 成长档案</span>
+        <h1 id="timelineTitle">成长时间线看板</h1>
+        <p>按学生回看亲子任务提交、教师观察与反馈，快速了解平台上的成长记录。</p>
+      </div>
+      <span class="updated-at" id="updatedAt">正在同步…</span>
+    </section>
+
+    <section class="timeline-controls" aria-label="时间线筛选">
+      <label class="timeline-select-label" for="studentFilter">学生
+        <select id="studentFilter"><option value="">全部学生</option></select>
+      </label>
+      <label class="timeline-select-label" for="rangeFilter">时间范围
+        <select id="rangeFilter">
+          <option value="30">近 30 天</option>
+          <option value="90" selected>近 90 天</option>
+          <option value="0">全部记录</option>
+        </select>
+      </label>
+      <div class="type-filter" role="group" aria-label="记录类型">
+        <button class="type-filter-btn is-active" type="button" data-kind="all">全部记录</button>
+        <button class="type-filter-btn" type="button" data-kind="submission">孩子提交</button>
+        <button class="type-filter-btn" type="button" data-kind="observation">教师观察</button>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" type="button" title="重新加载时间线"><span aria-hidden="true">↻</span> 刷新数据</button>
+    </section>
+
+    <section class="timeline-metrics" id="timelineMetrics" aria-label="时间线统计">
+      <article class="timeline-metric"><span>时间线记录</span><strong id="metricTotal">—</strong><small>当前筛选范围</small></article>
+      <article class="timeline-metric"><span>有记录学生</span><strong id="metricStudents">—</strong><small>至少有一条成长记录</small></article>
+      <article class="timeline-metric"><span>孩子提交</span><strong id="metricSubmissions">—</strong><small>已完成的任务记录</small></article>
+      <article class="timeline-metric"><span>教师观察</span><strong id="metricObservations">—</strong><small>校园观察与分析</small></article>
+    </section>
+
+    <section class="timeline-layout">
+      <div class="timeline-feed-panel">
+        <div class="feed-header">
+          <div><span class="eyebrow">活动记录</span><h2>成长足迹</h2></div>
+          <span class="feed-count" id="feedCount">—</span>
+        </div>
+        <div class="timeline-feed" id="timelineFeed" aria-live="polite">
+          <div class="timeline-state">正在加载成长记录…</div>
+        </div>
+      </div>
+
+      <aside class="timeline-insights" aria-label="时间线概览">
+        <section class="insight-panel">
+          <div class="insight-heading"><div><span class="eyebrow">最近 7 天</span><h2>记录节奏</h2></div><span id="trendTotal">—</span></div>
+          <div class="trend-chart" id="trendChart"></div>
+        </section>
+        <section class="insight-panel">
+          <div class="insight-heading"><div><span class="eyebrow">学生分布</span><h2>活跃学生</h2></div></div>
+          <div class="student-bars" id="studentBars"><div class="timeline-state compact">暂无数据</div></div>
+        </section>
+        <section class="legend-panel">
+          <div class="legend-item"><span class="legend-dot submission"></span><span><strong>孩子提交</strong><small>亲子任务完成后的文字记录</small></span></div>
+          <div class="legend-item"><span class="legend-dot observation"></span><span><strong>教师观察</strong><small>老师记录的校园表现与分析</small></span></div>
+          <div class="legend-item"><span class="legend-dot feedback"></span><span><strong>教师反馈</strong><small>附在孩子提交上的点评</small></span></div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/admin-timeline.js"></script>
+</body>
+</html>

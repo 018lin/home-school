@@ -22,7 +22,7 @@ body.admin-page {
 }
 
 .admin-page .brand { color: var(--admin-ink) !important; }
-.admin-page .teacher-nav { max-width: 440px !important; margin-left: 12px; }
+.admin-page .teacher-nav { max-width: 620px !important; margin-left: 12px; }
 .admin-page .nav-link.active { color: var(--admin-ink) !important; }
 .admin-page .btn-logout { color: var(--admin-ink) !important; }
 

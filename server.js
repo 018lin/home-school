@@ -2377,6 +2377,103 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { tasks: taskRows, studentCount: children.length });
   }
 
+  /* ---- 管理员成长时间线看板 ---- */
+  if (req.method === "GET" && pathname === "/api/admin/growth-timeline") {
+    if (user.role !== "admin") return sendJson(res, 403, { message: "仅管理员账号可访问" });
+    const parsedLimit = Number(query.get("limit") || 300);
+    const requestedLimit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(500, parsedLimit)) : 300;
+    const requestedChildId = query.get("childId") ? Number(query.get("childId")) : null;
+    const children = await db.prepare(
+      "SELECT id, name, grade FROM children ORDER BY name, id"
+    ).all();
+    const childClause = requestedChildId ? " AND s.child_id = ?" : "";
+    const updateChildClause = requestedChildId ? " AND d.child_id = ?" : "";
+    const submissionParams = requestedChildId ? [requestedChildId] : [];
+    const updateParams = requestedChildId ? [requestedChildId] : [];
+    const submissions = await db.prepare(
+      "SELECT s.id, s.child_id, s.content, s.sub_type, s.created_at, t.title, t.task_type, " +
+      "c.name AS student_name, c.grade, f.id AS feedback_id, f.comment AS feedback_comment, " +
+      "f.tags AS feedback_tags, f.created_at AS feedback_at, u.display_name AS teacher_name " +
+      "FROM submissions s JOIN tasks t ON t.id = s.task_id " +
+      "JOIN children c ON c.id = s.child_id " +
+      "LEFT JOIN feedback f ON f.submission_id = s.id " +
+      "LEFT JOIN users u ON u.id = f.teacher_id " +
+      "WHERE s.status = 'submitted'" + childClause + " ORDER BY s.created_at DESC, s.id DESC LIMIT " + requestedLimit
+    ).all(...submissionParams);
+    const observations = await db.prepare(
+      "SELECT d.id, d.child_id, d.student_name, d.summary, d.analysis, d.tags, d.ai_status, " +
+      "d.recipient_count, d.created_at, c.name AS child_name, c.grade, u.display_name AS teacher_name " +
+      "FROM teacher_daily_updates d LEFT JOIN children c ON c.id = d.child_id " +
+      "LEFT JOIN users u ON u.id = d.teacher_id WHERE 1 = 1" + updateChildClause +
+      " ORDER BY d.created_at DESC, d.id DESC LIMIT " + requestedLimit
+    ).all(...updateParams);
+    const items = submissions.map(function (row) {
+      return {
+        id: "submission-" + row.id,
+        sourceId: row.id,
+        kind: "submission",
+        kindLabel: "孩子提交",
+        childId: row.child_id,
+        studentName: row.student_name || "学生",
+        grade: row.grade || "",
+        title: row.title || "成长实践记录",
+        taskType: row.task_type || "成长实践",
+        content: row.content || "",
+        analysis: "",
+        tags: "",
+        teacherName: row.teacher_name || "",
+        createdAt: row.created_at,
+        feedback: row.feedback_id ? {
+          comment: row.feedback_comment || "",
+          tags: row.feedback_tags || "",
+          teacherName: row.teacher_name || "老师",
+          createdAt: row.feedback_at
+        } : null
+      };
+    }).concat(observations.map(function (row) {
+      return {
+        id: "observation-" + row.id,
+        sourceId: row.id,
+        kind: "observation",
+        kindLabel: "教师观察",
+        childId: row.child_id || null,
+        studentName: row.child_name || row.student_name || "未匹配学生",
+        grade: row.grade || "",
+        title: row.child_name ? "校园观察 · " + row.child_name : "校园观察记录",
+        taskType: "教师记录",
+        content: row.summary || "",
+        analysis: row.analysis || "",
+        tags: row.tags || "",
+        teacherName: row.teacher_name || "老师",
+        createdAt: row.created_at,
+        feedback: null,
+        aiStatus: row.ai_status || "fallback",
+        recipientCount: Number(row.recipient_count || 0)
+      };
+    })).sort(function (a, b) {
+      const dateA = new Date(String(a.createdAt || "").replace(" ", "T") +
+        (/[zZ]|[+-]\d{2}:?\d{2}$/.test(String(a.createdAt || "")) ? "" : "+08:00")).getTime();
+      const dateB = new Date(String(b.createdAt || "").replace(" ", "T") +
+        (/[zZ]|[+-]\d{2}:?\d{2}$/.test(String(b.createdAt || "")) ? "" : "+08:00")).getTime();
+      return (Number.isNaN(dateB) ? 0 : dateB) - (Number.isNaN(dateA) ? 0 : dateA);
+    }).slice(0, requestedLimit);
+    const activeChildren = new Set(items.filter(function (item) { return item.childId; }).map(function (item) {
+      return String(item.childId);
+    }));
+    return sendJson(res, 200, {
+      generatedAt: new Date().toISOString(),
+      children: children,
+      stats: {
+        timelineCount: items.length,
+        activeStudentCount: activeChildren.size,
+        submissionCount: items.filter(function (item) { return item.kind === "submission"; }).length,
+        observationCount: items.filter(function (item) { return item.kind === "observation"; }).length,
+        feedbackCount: items.filter(function (item) { return !!item.feedback; }).length
+      },
+      items: items
+    });
+  }
+
   /* ---- 基础行为埋点 ---- */
   if (req.method === "POST" && pathname === "/api/events") {
     const body = await readBody(req);
