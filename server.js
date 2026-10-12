@@ -2256,32 +2256,7 @@ const databaseReady = initializeDatabase(db).then(seed);
 async function handleApi(req, res, pathname, query) {
   /* ---- 注册 ---- */
   if (req.method === "POST" && pathname === "/api/auth/register") {
-    const body = await readBody(req);
-    const account = String(body.account || "").trim();
-    const password = String(body.password || "");
-    const displayName = String(body.displayName || "").trim();
-    if (account.length < 3) return sendJson(res, 400, { message: "账号至少 3 个字符" });
-    if (password.length < 6) return sendJson(res, 400, { message: "密码至少 6 位" });
-    if (!displayName) return sendJson(res, 400, { message: "请填写称呼" });
-    try {
-      const result = await db.transaction(async function (tx) {
-        if (await tx.prepare("SELECT id FROM users WHERE account = ?").get(account)) {
-          throw new ApiError(409, "该账号已被注册", "ACCOUNT_EXISTS");
-        }
-        const userId = await tx.prepare(
-          "INSERT INTO users (account, password_hash, display_name, role) VALUES (?,?,?, 'parent')"
-        ).run(account, hashPassword(password), displayName).lastInsertRowid;
-        const token = crypto.randomBytes(24).toString("hex");
-        await tx.prepare("INSERT INTO sessions (token, user_id) VALUES (?, ?)").run(token, userId);
-        return { token: token, userId: userId };
-      });
-      return sendJson(res, 200, { token: result.token, user: { account, displayName, role: "parent" } });
-    } catch (error) {
-      if (error && error.code === "SQLITE_CONSTRAINT_UNIQUE") {
-        return sendJson(res, 409, { message: "该账号已被注册", errorCode: "ACCOUNT_EXISTS" });
-      }
-      throw error;
-    }
+    return sendJson(res, 410, { message: "家长账号由管理员统一创建", errorCode: "PUBLIC_REGISTRATION_DISABLED" });
   }
 
   /* ---- 登录 ---- */

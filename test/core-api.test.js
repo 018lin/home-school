@@ -95,6 +95,26 @@ test("core parent and teacher workflow remains compatible", async function () {
     method: "POST",
     body: { account: account, password: "123456", displayName: "测试家长" }
   });
+  assert.equal(result.response.status, 410);
+  assert.equal(result.data.errorCode, "PUBLIC_REGISTRATION_DISABLED");
+
+  result = await request("/api/auth/login", {
+    method: "POST",
+    body: { account: "admin", password: "018admin" }
+  });
+  assert.equal(result.response.status, 200);
+  const adminToken = result.data.token;
+  result = await request("/api/admin/accounts", {
+    method: "POST",
+    token: adminToken,
+    body: { role: "parent", account: account, password: "123456", displayName: "测试家长" }
+  });
+  assert.equal(result.response.status, 201);
+
+  result = await request("/api/auth/login", {
+    method: "POST",
+    body: { account: account, password: "123456" }
+  });
   assert.equal(result.response.status, 200);
   assert.ok(result.data.token);
   parentToken = result.data.token;
