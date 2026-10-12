@@ -77,6 +77,25 @@ function setSelectedChildId(id) {
   localStorage.setItem("selectedChildId", id);
 }
 
+function setupWorkspaceNavigation(role, active) {
+  if (role !== "admin") return;
+  var brand = document.querySelector(".brand");
+  var nav = document.querySelector(".teacher-nav");
+  if (brand) brand.textContent = "管理员工作台";
+  if (!nav) return;
+  var links = [
+    { id: "overview", label: "全局概览", href: "admin.html" },
+    { id: "tasks", label: "已发布任务", href: "admin-tasks.html" },
+    { id: "ai", label: "AI 洞察", href: "teacher-ai.html" },
+    { id: "students", label: "学生档案", href: "teacher-students.html" }
+  ];
+  nav.innerHTML = links.map(function (link) {
+    return '<a class="nav-link' + (active === link.id ? " active" : "") +
+      '" href="' + link.href + '">' + link.label + '</a>';
+  }).join("");
+  nav.setAttribute("aria-label", "管理员导航");
+}
+
 function trackEvent(eventType, payload) {
   payload = payload || {};
   payload.eventType = eventType;

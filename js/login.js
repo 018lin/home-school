@@ -66,9 +66,11 @@
               } catch (e) {}
             });
           });
-          // 教师角色进入教师端
+          // 教师和管理员进入各自工作台
           if (result.data.user.role === "teacher") {
             window.location.href = "teacher.html";
+          } else if (result.data.user.role === "admin") {
+            window.location.href = "admin.html";
           } else {
             window.location.href = "home.html";
           }

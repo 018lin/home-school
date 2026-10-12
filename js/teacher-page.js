@@ -4,10 +4,11 @@
   requireAuth();
   var auth = getAuth();
   if (auth && auth.user) {
-    if (auth.user.role !== "teacher") {
+    if (auth.user.role !== "teacher" && auth.user.role !== "admin") {
       window.location.href = "home.html";
       return;
     }
+    setupWorkspaceNavigation(auth.user.role, "ai");
     document.getElementById("userName").textContent = "你好，" + auth.user.displayName;
   }
 

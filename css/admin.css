@@ -1,0 +1,206 @@
+body.admin-page {
+  --admin-ink: #1d1d1f;
+  --admin-muted: #6e737d;
+  --admin-line: #e0e0e0;
+  --admin-canvas: #f5f5f7;
+  --admin-surface: #ffffff;
+  --admin-blue: #0066cc;
+  min-width: 320px;
+  color: var(--admin-ink) !important;
+  background: var(--admin-canvas) !important;
+}
+
+.admin-page .topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  min-height: 56px !important;
+  padding: 0 clamp(16px, 4vw, 48px) !important;
+  border-bottom: 1px solid rgba(224, 224, 224, .86) !important;
+  background: rgba(255, 255, 255, .9) !important;
+  backdrop-filter: saturate(180%) blur(18px) !important;
+}
+
+.admin-page .brand { color: var(--admin-ink) !important; }
+.admin-page .teacher-nav { max-width: 440px !important; margin-left: 12px; }
+.admin-page .nav-link.active { color: var(--admin-ink) !important; }
+.admin-page .btn-logout { color: var(--admin-ink) !important; }
+
+.admin-main {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 52px 0 80px;
+}
+
+.admin-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+.eyebrow {
+  color: var(--admin-blue);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.admin-heading h1 {
+  margin-top: 10px;
+  color: var(--admin-ink);
+  font-size: clamp(32px, 5vw, 48px);
+  line-height: 1.1;
+  font-weight: 650;
+  letter-spacing: -.03em;
+}
+
+.admin-heading p {
+  max-width: 480px;
+  margin-top: 12px;
+  color: var(--admin-muted);
+  font-size: 15px;
+}
+
+.updated-at { color: var(--admin-muted); font-size: 12px; white-space: nowrap; }
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+.metric-card {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px 24px;
+  border: 1px solid var(--admin-line);
+  border-radius: 16px;
+  background: var(--admin-surface);
+}
+
+.metric-card span { color: var(--admin-muted); font-size: 13px; font-weight: 650; }
+.metric-card strong { color: var(--admin-ink); font-size: 42px; line-height: 1; font-weight: 650; letter-spacing: -.03em; }
+.metric-card small { color: #8a8f98; font-size: 12px; }
+
+.directory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.directory-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 16px;
+  background: var(--admin-surface);
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.panel-heading h2 { margin-top: 8px; color: var(--admin-ink); font-size: 22px; font-weight: 650; }
+.panel-count { color: var(--admin-muted); font-size: 13px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 14px 24px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; white-space: nowrap; }
+th { color: var(--admin-muted); background: #fafafc; font-size: 12px; font-weight: 650; }
+td { color: var(--admin-ink); }
+tbody tr:last-child td { border-bottom: 0; }
+td:last-child { color: var(--admin-muted); }
+.table-state { padding: 32px 24px; color: #8a8f98; text-align: center; }
+
+@media (max-width: 760px) {
+  .admin-page .topbar { min-height: auto !important; padding: 11px 14px !important; flex-wrap: wrap !important; gap: 10px !important; }
+  .admin-page .teacher-nav { order: 3; flex-basis: 100% !important; width: 100% !important; margin-left: 0; max-width: none !important; }
+  .admin-page .user-name { display: none !important; }
+  .admin-main { width: calc(100% - 28px); padding: 32px 0 56px; }
+  .admin-heading { display: block; margin-bottom: 24px; }
+  .updated-at { display: block; margin-top: 14px; }
+  .metric-grid, .directory-grid { grid-template-columns: 1fr; }
+  .metric-card { min-height: 126px; }
+  .panel-heading, th, td { padding-left: 16px; padding-right: 16px; }
+}
+
+.task-heading { margin-bottom: 14px; }
+.task-filter { display: inline-flex; align-items: center; gap: 10px; color: var(--admin-muted); font-size: 13px; white-space: nowrap; }
+.task-filter select {
+  min-height: 40px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  color: var(--admin-ink);
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+.task-result-note { min-height: 20px; margin-bottom: 12px; color: var(--admin-muted); font-size: 12px; }
+.task-list { display: grid; gap: 12px; }
+.task-card {
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-surface);
+}
+.task-card[open] { border-color: #b6cde6; }
+.task-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(180px, .8fr) minmax(190px, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 78px;
+  padding: 16px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.task-summary::-webkit-details-marker { display: none; }
+.task-summary::after { content: "⌄"; color: #8a8f98; font-size: 18px; transition: transform .18s ease; }
+.task-card[open] .task-summary::after { transform: rotate(180deg); }
+.task-summary:hover { background: #fbfcfe; }
+.task-title-line { min-width: 0; }
+.task-title-line strong { display: block; overflow: hidden; color: var(--admin-ink); font-size: 15px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.task-title-line span { display: block; margin-top: 4px; overflow: hidden; color: var(--admin-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.task-stat { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--admin-muted); font-size: 12px; }
+.task-stat b { color: var(--admin-ink); font-size: 18px; font-weight: 650; }
+.task-progress { min-width: 0; }
+.task-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--admin-muted); font-size: 12px; }
+.task-progress-top strong { color: var(--admin-blue); font-size: 14px; }
+.task-progress-track { height: 6px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: #edf0f3; }
+.task-progress-fill { height: 100%; border-radius: inherit; background: var(--admin-blue); }
+.task-detail { padding: 18px 20px 20px; border-top: 1px solid #f0f0f0; background: #fafafc; }
+.task-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.task-detail-head h2 { color: var(--admin-ink); font-size: 14px; font-weight: 650; }
+.task-detail-head span { color: var(--admin-muted); font-size: 12px; }
+.completion-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.completion-row { min-width: 0; padding: 12px 14px; border: 1px solid #e7e8eb; border-radius: 8px; background: #fff; }
+.completion-row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.completion-name { overflow: hidden; color: var(--admin-ink); font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.completion-status { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; font-size: 11px; font-weight: 650; }
+.completion-status.completed { color: #176a45; background: #eaf8f0; }
+.completion-status.draft { color: #8a5a10; background: #fff5df; }
+.completion-status.not-started { color: #717985; background: #f0f1f3; }
+.completion-meta { margin-top: 7px; color: var(--admin-muted); font-size: 11px; line-height: 1.5; }
+.completion-content { margin-top: 7px; padding-top: 7px; border-top: 1px solid #f0f0f0; color: #41454d; font-size: 12px; line-height: 1.6; white-space: pre-line; }
+.task-state { padding: 48px 24px; border: 1px solid var(--admin-line); border-radius: 12px; color: #8a8f98; background: #fff; text-align: center; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .task-heading { display: block; }
+  .task-filter { margin-top: 18px; }
+  .task-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; padding: 15px 16px; }
+  .task-stat { grid-column: 1 / -1; }
+  .task-progress { grid-column: 1 / -1; }
+  .task-summary::after { grid-column: 2; grid-row: 1; }
+  .task-detail { padding: 16px; }
+  .completion-list { grid-template-columns: 1fr; }
+}

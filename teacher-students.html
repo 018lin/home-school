@@ -122,7 +122,13 @@
       requireAuth();
       var auth = getAuth();
       if (auth && auth.user) {
-        if (auth.user.role !== "teacher") { window.location.href = "home.html"; return; }
+        if (auth.user.role !== "teacher" && auth.user.role !== "admin") { window.location.href = "home.html"; return; }
+        setupWorkspaceNavigation(auth.user.role, "students");
+        if (auth.user.role === "admin") {
+          document.body.classList.add("admin-view");
+          var publishSection = document.querySelector(".publish-section");
+          if (publishSection) publishSection.hidden = true;
+        }
         document.getElementById("userName").textContent = "你好，" + auth.user.displayName;
       }
       document.getElementById("logoutBtn").addEventListener("click", function () {

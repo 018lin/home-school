@@ -2097,6 +2097,13 @@ async function answerTeacherMetricQuestion(question) {
 
 /* ============ 种子数据（演示用，幂等） ============ */
 async function seed() {
+  const hasAdmin = await db.prepare("SELECT id FROM users WHERE account = 'admin'").get();
+  if (!hasAdmin) {
+    await db.prepare(
+      "INSERT INTO users (account, password_hash, display_name, role) VALUES (?, ?, ?, 'admin')"
+    ).run("admin", hashPassword("018admin"), "系统管理员");
+  }
+
   const hasDemo = await db.prepare("SELECT id FROM users WHERE account = 'demo'").get();
   var demoUserId, teacherId, childId;
 
@@ -2269,6 +2276,105 @@ async function handleApi(req, res, pathname, query) {
     const token = req.headers["authorization"].slice(7);
     await db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
     return sendJson(res, 200, { ok: true });
+  }
+
+  /* ---- 管理员全局概览 ---- */
+  if (req.method === "GET" && pathname === "/api/admin/overview") {
+    if (user.role !== "admin") return sendJson(res, 403, { message: "仅管理员账号可访问" });
+    const teachers = await db.prepare(
+      "SELECT id, account, display_name, created_at FROM users WHERE role = 'teacher' ORDER BY id DESC"
+    ).all();
+    const students = await db.prepare(
+      "SELECT c.id, c.name, c.grade, c.created_at, " +
+      "(SELECT COUNT(*) FROM bindings b WHERE b.child_id = c.id) AS parent_count " +
+      "FROM children c ORDER BY c.id DESC"
+    ).all();
+    const parentCount = await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'parent'").get();
+    return sendJson(res, 200, {
+      generatedAt: new Date().toISOString(),
+      stats: {
+        teacherCount: teachers.length,
+        studentCount: students.length,
+        parentCount: Number(parentCount && parentCount.n || 0)
+      },
+      teachers: teachers,
+      students: students.map(function (row) {
+        return Object.assign({}, row, { parent_count: Number(row.parent_count || 0) });
+      })
+    });
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/tasks") {
+    if (user.role !== "admin") return sendJson(res, 403, { message: "仅管理员账号可访问" });
+    const requestedLimit = Math.max(1, Math.min(200, Number(query.get("limit") || 100)));
+    const children = await db.prepare(
+      "SELECT id, name, grade FROM children ORDER BY id"
+    ).all();
+    const tasks = await db.prepare(
+      "SELECT t.id, t.title, t.task_type, t.week_start, t.created_at, t.duration, t.child_id, " +
+      "c.name AS child_name, u.display_name AS publisher_name " +
+      "FROM tasks t LEFT JOIN children c ON c.id = t.child_id " +
+      "LEFT JOIN users u ON u.id = t.published_by " +
+      "ORDER BY t.id DESC LIMIT " + requestedLimit
+    ).all();
+    const submissions = await db.prepare(
+      "SELECT s.id, s.task_id, s.child_id, s.status, s.content, s.sub_type, s.created_at, c.name AS child_name " +
+      "FROM submissions s JOIN children c ON c.id = s.child_id " +
+      "WHERE s.task_id IN (SELECT id FROM tasks ORDER BY id DESC LIMIT " + requestedLimit + ") " +
+      "ORDER BY s.id DESC"
+    ).all();
+    const childById = {};
+    children.forEach(function (child) { childById[Number(child.id)] = child; });
+    const submissionsByTask = {};
+    submissions.forEach(function (submission) {
+      const taskId = Number(submission.task_id);
+      const childId = Number(submission.child_id);
+      if (!submissionsByTask[taskId]) submissionsByTask[taskId] = {};
+      const current = submissionsByTask[taskId][childId];
+      if (!current || (submission.status === "submitted" && current.status !== "submitted")) {
+        submissionsByTask[taskId][childId] = submission;
+      }
+    });
+    const taskRows = tasks.map(function (task) {
+      const targetChildren = task.child_id
+        ? (childById[Number(task.child_id)] ? [childById[Number(task.child_id)]] : [])
+        : children;
+      const byChild = submissionsByTask[Number(task.id)] || {};
+      const details = targetChildren.map(function (child) {
+        const submission = byChild[Number(child.id)];
+        const status = submission && submission.status === "submitted"
+          ? "completed" : submission && submission.status === "draft" ? "draft" : "not_started";
+        return {
+          studentId: child.id,
+          studentName: child.name,
+          grade: child.grade,
+          status: status,
+          submissionId: submission ? submission.id : null,
+          content: submission && submission.status === "submitted" ? submission.content : "",
+          submittedAt: submission && submission.status === "submitted" ? submission.created_at : null,
+          subType: submission && submission.status === "submitted" ? submission.sub_type : ""
+        };
+      });
+      const completed = details.filter(function (row) { return row.status === "completed"; }).length;
+      const drafts = details.filter(function (row) { return row.status === "draft"; }).length;
+      return {
+        id: task.id,
+        title: task.title,
+        type: task.task_type,
+        weekStart: task.week_start,
+        createdAt: task.created_at,
+        duration: task.duration,
+        scope: task.child_id ? "个性化任务" : "全班任务",
+        studentName: task.child_name || "全班学生",
+        publisherName: task.publisher_name || "教师",
+        targetCount: details.length,
+        completedCount: completed,
+        draftCount: drafts,
+        completionRate: details.length ? Math.round(completed / details.length * 100) : 0,
+        details: details
+      };
+    });
+    return sendJson(res, 200, { tasks: taskRows, studentCount: children.length });
   }
 
   /* ---- 基础行为埋点 ---- */
@@ -2751,9 +2857,9 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { ok: true });
   }
 
-  /* ---- 教师端 ---- */
-  if (user.role !== "teacher") {
-    return sendJson(res, 403, { message: "仅教师账号可访问" });
+  /* ---- 教师端与管理员只读入口 ---- */
+  if (user.role !== "teacher" && user.role !== "admin") {
+    return sendJson(res, 403, { message: "仅教师或管理员账号可访问" });
   }
 
   if (req.method === "POST" && pathname === "/api/teacher/notifications") {
