@@ -23,7 +23,7 @@ const SERIAL_TABLES = new Set([
   "ai_vector_documents"
 ]);
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 function replaceQuestionMarks(sql) {
   let index = 0;
@@ -227,9 +227,9 @@ class DatabaseAdapter {
 function postgresSchema() {
   return [
     "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'))",
-    "CREATE TABLE IF NOT EXISTS users (id BIGSERIAL PRIMARY KEY, account TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, display_name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'parent', created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'))",
+    "CREATE TABLE IF NOT EXISTS users (id BIGSERIAL PRIMARY KEY, account TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, display_name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'parent', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', subject TEXT NOT NULL DEFAULT '', employee_no TEXT NOT NULL DEFAULT '', created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'))",
     "CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id BIGINT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'))",
-    "CREATE TABLE IF NOT EXISTS children (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, grade TEXT NOT NULL DEFAULT '', created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'), gender TEXT NOT NULL DEFAULT '', age INTEGER, caregiver TEXT NOT NULL DEFAULT '', interests TEXT NOT NULL DEFAULT '', family_note TEXT NOT NULL DEFAULT '')",
+    "CREATE TABLE IF NOT EXISTS children (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, grade TEXT NOT NULL DEFAULT '', created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'), gender TEXT NOT NULL DEFAULT '', age INTEGER, caregiver TEXT NOT NULL DEFAULT '', interests TEXT NOT NULL DEFAULT '', family_note TEXT NOT NULL DEFAULT '', user_id BIGINT UNIQUE)",
     "CREATE TABLE IF NOT EXISTS bindings (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL, child_id BIGINT NOT NULL, relation TEXT NOT NULL DEFAULT '家长', UNIQUE(user_id, child_id))",
     "CREATE TABLE IF NOT EXISTS tasks (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, goal TEXT NOT NULL DEFAULT '', steps TEXT NOT NULL DEFAULT '', dialogue_tips TEXT NOT NULL DEFAULT '', submit_hint TEXT NOT NULL DEFAULT '', duration INTEGER NOT NULL DEFAULT 20, task_type TEXT NOT NULL DEFAULT '阅读', week_start TEXT NOT NULL, published_by BIGINT, created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'), child_id BIGINT, difficulty TEXT NOT NULL DEFAULT '普通', materials TEXT NOT NULL DEFAULT '', fallback_plan TEXT NOT NULL DEFAULT '')",
     "CREATE TABLE IF NOT EXISTS submissions (id BIGSERIAL PRIMARY KEY, task_id BIGINT NOT NULL, child_id BIGINT NOT NULL, content TEXT NOT NULL, sub_type TEXT NOT NULL DEFAULT 'text', created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai'), status TEXT NOT NULL DEFAULT 'submitted', attachments TEXT NOT NULL DEFAULT '[]')",
@@ -256,9 +256,9 @@ function postgresSchema() {
 function sqliteSchema() {
   return [
     "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))",
-    "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, account TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, display_name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'parent', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))",
+    "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, account TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, display_name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'parent', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', subject TEXT NOT NULL DEFAULT '', employee_no TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))",
     "CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))",
-    "CREATE TABLE IF NOT EXISTS children (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, grade TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), gender TEXT NOT NULL DEFAULT '', age INTEGER, caregiver TEXT NOT NULL DEFAULT '', interests TEXT NOT NULL DEFAULT '', family_note TEXT NOT NULL DEFAULT '')",
+    "CREATE TABLE IF NOT EXISTS children (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, grade TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), gender TEXT NOT NULL DEFAULT '', age INTEGER, caregiver TEXT NOT NULL DEFAULT '', interests TEXT NOT NULL DEFAULT '', family_note TEXT NOT NULL DEFAULT '', user_id INTEGER UNIQUE)",
     "CREATE TABLE IF NOT EXISTS bindings (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, child_id INTEGER NOT NULL, relation TEXT NOT NULL DEFAULT '家长', UNIQUE(user_id, child_id))",
     "CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, goal TEXT NOT NULL DEFAULT '', steps TEXT NOT NULL DEFAULT '', dialogue_tips TEXT NOT NULL DEFAULT '', submit_hint TEXT NOT NULL DEFAULT '', duration INTEGER NOT NULL DEFAULT 20, task_type TEXT NOT NULL DEFAULT '阅读', week_start TEXT NOT NULL, published_by INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), child_id INTEGER, difficulty TEXT NOT NULL DEFAULT '普通', materials TEXT NOT NULL DEFAULT '', fallback_plan TEXT NOT NULL DEFAULT '')",
     "CREATE TABLE IF NOT EXISTS submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, child_id INTEGER NOT NULL, content TEXT NOT NULL, sub_type TEXT NOT NULL DEFAULT 'text', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), status TEXT NOT NULL DEFAULT 'submitted', attachments TEXT NOT NULL DEFAULT '[]')",
@@ -329,6 +329,18 @@ const MIGRATIONS = [
     statements: [
       "CREATE TABLE IF NOT EXISTS teacher_daily_updates (id INTEGER PRIMARY KEY AUTOINCREMENT, teacher_id INTEGER NOT NULL, child_id INTEGER, student_name TEXT NOT NULL DEFAULT '', transcript TEXT NOT NULL, summary TEXT NOT NULL, analysis TEXT NOT NULL DEFAULT '', parent_message TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '', ai_status TEXT NOT NULL DEFAULT 'fallback', recipient_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))",
       "CREATE INDEX IF NOT EXISTS idx_teacher_daily_updates_teacher_created ON teacher_daily_updates(teacher_id, created_at)"
+    ],
+    allowAlreadyApplied: true
+  },
+  {
+    version: 5,
+    statements: [
+      "ALTER TABLE users ADD COLUMN phone TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE users ADD COLUMN subject TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE users ADD COLUMN employee_no TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE children ADD COLUMN user_id INTEGER",
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_children_user_id ON children(user_id)"
     ],
     allowAlreadyApplied: true
   }

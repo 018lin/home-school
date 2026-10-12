@@ -1,0 +1,54 @@
+.accounts-heading { align-items: center; }
+.primary-action, .secondary-action { min-height: 40px; padding: 0 16px; border: 1px solid transparent; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.primary-action { color: #fff; background: var(--admin-blue); box-shadow: 0 8px 18px rgba(0, 102, 204, .16); }
+.primary-action:hover { background: #0057b8; }
+.primary-action:disabled { opacity: .6; cursor: wait; }
+.secondary-action { color: var(--admin-ink); border-color: var(--admin-line); background: #fff; }
+.account-toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.segmented { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--admin-line); border-radius: 10px; background: #f7f8fa; }
+.segment { min-height: 32px; padding: 0 13px; border: 0; border-radius: 7px; color: var(--admin-muted); background: transparent; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.segment.active { color: var(--admin-ink); background: #fff; box-shadow: 0 3px 9px rgba(29, 29, 31, .08); }
+.search-field { flex: 0 1 280px; }
+.search-field input { width: 100%; min-height: 38px; padding: 0 13px; border: 1px solid var(--admin-line); border-radius: 9px; color: var(--admin-ink); background: #fff; font: inherit; font-size: 13px; box-sizing: border-box; }
+.search-field input:focus, .form-field input:focus, .form-field select:focus, .form-field textarea:focus { outline: 0; border-color: var(--admin-blue); box-shadow: 0 0 0 3px rgba(0, 102, 204, .12); }
+.result-count { margin-left: auto; color: var(--admin-muted); font-size: 12px; }
+.account-table-panel { overflow: hidden; border: 1px solid var(--admin-line); border-radius: 14px; background: #fff; }
+.account-table th, .account-table td { padding-top: 15px; padding-bottom: 15px; }
+.member-cell strong { display: block; color: var(--admin-ink); font-size: 14px; }
+.member-cell small { display: block; margin-top: 3px; color: var(--admin-muted); font-size: 11px; }
+.identity { display: inline-flex; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.identity.teacher { color: #075985; background: #e0f2fe; }
+.identity.student { color: #166534; background: #dcfce7; }
+.profile-summary { max-width: 260px; overflow: hidden; color: var(--admin-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.edit-button { padding: 5px 8px; border: 0; color: var(--admin-blue); background: transparent; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.edit-button:hover { text-decoration: underline; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: rgba(29, 29, 31, .36); }
+.modal-backdrop[hidden] { display: none; }
+.account-modal { width: min(720px, 100%); max-height: min(760px, calc(100vh - 48px)); overflow: auto; padding: 24px; border-radius: 16px; background: #fff; box-shadow: 0 28px 80px rgba(0, 0, 0, .22); }
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+.modal-header h2 { margin-top: 7px; color: var(--admin-ink); font-size: 23px; font-weight: 700; }
+.icon-button { width: 34px; height: 34px; border: 1px solid var(--admin-line); border-radius: 8px; color: var(--admin-muted); background: #fff; font-size: 23px; line-height: 1; cursor: pointer; }
+.icon-button:hover { color: var(--admin-ink); background: #f7f8fa; }
+.form-status { min-height: 20px; margin: 0 0 8px; color: var(--admin-muted); font-size: 12px; }
+.form-status.error { color: var(--danger); }
+.role-picker { margin-bottom: 16px; }
+.field-label { display: block; margin-bottom: 7px; color: var(--admin-ink); font-size: 12px; font-weight: 700; }
+.role-picker .segmented { width: 100%; }
+.role-picker label { flex: 1; }
+.role-picker label input { position: absolute; opacity: 0; pointer-events: none; }
+.role-picker label span { display: flex; align-items: center; justify-content: center; min-height: 34px; border-radius: 7px; color: var(--admin-muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.role-picker label input:checked + span { color: var(--admin-ink); background: #fff; box-shadow: 0 3px 9px rgba(29, 29, 31, .08); }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 16px; }
+.form-field { display: block; min-width: 0; }
+.form-field.full { grid-column: 1 / -1; }
+.form-field > span { display: block; margin-bottom: 6px; color: var(--admin-ink); font-size: 12px; font-weight: 650; }
+.form-field b { color: var(--danger); font-weight: 700; }
+.form-field input, .form-field select, .form-field textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--admin-line); border-radius: 8px; color: var(--admin-ink); background: #fff; font: inherit; font-size: 13px; }
+.form-field textarea { resize: vertical; line-height: 1.5; }
+.form-field small { display: block; min-height: 16px; margin-top: 4px; color: var(--admin-muted); font-size: 11px; }
+.student-only { display: none; }
+.accounts-page.student-form .teacher-only { display: none; }
+.accounts-page.student-form .student-only { display: block; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
+@media (max-width: 760px) { .accounts-heading { display: block; } .accounts-heading .primary-action { margin-top: 18px; } .account-toolbar { align-items: stretch; flex-wrap: wrap; gap: 10px; } .search-field { order: 3; flex-basis: 100%; } .result-count { margin-left: auto; align-self: center; } .account-table-panel { border-radius: 12px; } .account-table th, .account-table td { padding-left: 14px; padding-right: 14px; } .account-modal { max-height: calc(100vh - 24px); padding: 20px 16px; } .form-grid { grid-template-columns: 1fr; } .form-field.full { grid-column: auto; } }

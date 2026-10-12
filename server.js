@@ -2233,6 +2233,8 @@ async function seed() {
       "INSERT INTO children (name, grade, gender, age, caregiver, interests) VALUES (?, ?, ?, ?, ?, ?)"
     ).run("小测", "三年级", "", 9, "", "阅读,观察").lastInsertRowid };
   }
+  await db.prepare("UPDATE children SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = ?)")
+    .run(studentUser.id, studentChild.id, studentUser.id);
   await db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id, relation) VALUES (?, ?, '本人')")
     .run(studentUser.id, studentChild.id);
   var studentTask = await db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id = ? ORDER BY id DESC LIMIT 1")
@@ -2333,6 +2335,149 @@ async function handleApi(req, res, pathname, query) {
         return Object.assign({}, row, { parent_count: Number(row.parent_count || 0) });
       })
     });
+  }
+
+  /* ---- 管理员账号目录：教师与学生的注册、编辑 ---- */
+  if (pathname === "/api/admin/accounts" || /^\/api\/admin\/accounts\/\d+$/.test(pathname)) {
+    if (user.role !== "admin") return sendJson(res, 403, { message: "仅管理员账号可访问" });
+
+    if (req.method === "GET" && pathname === "/api/admin/accounts") {
+      const teachers = await db.prepare(
+        "SELECT id, account, display_name, phone, email, subject, employee_no, created_at " +
+        "FROM users WHERE role = 'teacher' ORDER BY id DESC"
+      ).all();
+      const students = await db.prepare(
+        "SELECT u.id, u.account, u.display_name, u.phone, u.email, u.created_at, " +
+        "c.id AS child_id, c.name, c.grade, c.gender, c.age, c.caregiver, c.interests, c.family_note, " +
+        "(SELECT COUNT(*) FROM bindings b JOIN users p ON p.id = b.user_id " +
+          "WHERE b.child_id = c.id AND p.role = 'parent') AS parent_count " +
+        ",(SELECT p.account FROM bindings b JOIN users p ON p.id = b.user_id " +
+          "WHERE b.child_id = c.id AND p.role = 'parent' ORDER BY b.id LIMIT 1) AS parent_account, " +
+        "(SELECT b.relation FROM bindings b JOIN users p ON p.id = b.user_id " +
+          "WHERE b.child_id = c.id AND p.role = 'parent' ORDER BY b.id LIMIT 1) AS parent_relation " +
+        "FROM users u LEFT JOIN children c ON c.user_id = u.id " +
+        "WHERE u.role = 'student' ORDER BY u.id DESC"
+      ).all();
+      return sendJson(res, 200, {
+        generatedAt: new Date().toISOString(),
+        teachers: teachers,
+        students: students.map(function (row) {
+          return Object.assign({}, row, { parent_count: Number(row.parent_count || 0) });
+        })
+      });
+    }
+
+    const accountId = Number(pathname.split("/").pop());
+    if (req.method === "POST" && pathname === "/api/admin/accounts") {
+      const body = await readBody(req);
+      const role = String(body.role || "").trim();
+      const account = String(body.account || "").trim();
+      const password = String(body.password || "");
+      const displayName = String(body.displayName || body.name || "").trim();
+      if (role !== "teacher" && role !== "student") return sendJson(res, 400, { message: "请选择教师或学生账号" });
+      if (account.length < 3) return sendJson(res, 400, { message: "账号至少 3 个字符" });
+      if (password.length < 6) return sendJson(res, 400, { message: "密码至少 6 位" });
+      if (!displayName) return sendJson(res, 400, { message: role === "student" ? "请填写学生姓名" : "请填写教师姓名" });
+      if (role === "student" && !String(body.grade || "").trim()) return sendJson(res, 400, { message: "请填写学生年级" });
+      try {
+        const created = await db.transaction(async function (tx) {
+          if (await tx.prepare("SELECT id FROM users WHERE account = ?").get(account)) {
+            throw new ApiError(409, "该账号已被注册", "ACCOUNT_EXISTS");
+          }
+          const userId = await tx.prepare(
+            "INSERT INTO users (account, password_hash, display_name, role, phone, email, subject, employee_no) VALUES (?,?,?,?,?,?,?,?)"
+          ).run(
+            account, hashPassword(password), displayName, role,
+            String(body.phone || "").trim(), String(body.email || "").trim(),
+            role === "teacher" ? String(body.subject || "").trim() : "",
+            role === "teacher" ? String(body.employeeNo || "").trim() : ""
+          ).lastInsertRowid;
+          let childId = null;
+          if (role === "student") {
+            childId = await tx.prepare(
+              "INSERT INTO children (name, grade, gender, age, caregiver, interests, family_note, user_id) VALUES (?,?,?,?,?,?,?,?)"
+            ).run(
+              displayName, String(body.grade || "").trim(), String(body.gender || "").trim(),
+              body.age === "" || body.age == null ? null : Number(body.age), String(body.caregiver || "").trim(),
+              String(body.interests || "").trim(), String(body.familyNote || "").trim(), userId
+            ).lastInsertRowid;
+            const parentAccount = String(body.parentAccount || "").trim();
+            if (parentAccount) {
+              const parent = await tx.prepare("SELECT id FROM users WHERE account = ? AND role = 'parent'").get(parentAccount);
+              if (!parent) throw new ApiError(400, "未找到对应的家长账号", "PARENT_NOT_FOUND");
+              await tx.prepare("INSERT INTO bindings (user_id, child_id, relation) VALUES (?, ?, ?)").run(parent.id, childId, String(body.relation || "家长").trim() || "家长");
+            }
+          }
+          return { userId: userId, childId: childId };
+        });
+        return sendJson(res, 201, { ok: true, id: Number(created.userId), childId: created.childId == null ? null : Number(created.childId) });
+      } catch (error) {
+        if (error && (error.code === "SQLITE_CONSTRAINT_UNIQUE" || error.code === "23505")) {
+          return sendJson(res, 409, { message: "该账号已被注册", errorCode: "ACCOUNT_EXISTS" });
+        }
+        throw error;
+      }
+    }
+
+    if (req.method === "PUT") {
+      const body = await readBody(req);
+      const existing = await db.prepare("SELECT * FROM users WHERE id = ? AND role IN ('teacher','student')").get(accountId);
+      if (!existing) return sendJson(res, 404, { message: "账号不存在" });
+      const account = String(body.account == null ? existing.account : body.account).trim();
+      const displayName = String(body.displayName == null ? existing.display_name : body.displayName).trim();
+      const password = String(body.password || "");
+      if (account.length < 3) return sendJson(res, 400, { message: "账号至少 3 个字符" });
+      if (!displayName) return sendJson(res, 400, { message: "请填写姓名" });
+      if (password && password.length < 6) return sendJson(res, 400, { message: "新密码至少 6 位" });
+      try {
+        await db.transaction(async function (tx) {
+          const duplicate = await tx.prepare("SELECT id FROM users WHERE account = ? AND id <> ?").get(account, accountId);
+          if (duplicate) throw new ApiError(409, "该账号已被注册", "ACCOUNT_EXISTS");
+          const passwordSql = password ? ", password_hash = ?" : "";
+          const params = [account, displayName, String(body.phone == null ? existing.phone || "" : body.phone).trim(), String(body.email == null ? existing.email || "" : body.email).trim()];
+          if (existing.role === "teacher") {
+            params.push(String(body.subject == null ? existing.subject || "" : body.subject).trim(), String(body.employeeNo == null ? existing.employee_no || "" : body.employeeNo).trim());
+          }
+          if (password) params.push(hashPassword(password));
+          params.push(accountId);
+          await tx.prepare(
+            existing.role === "teacher"
+              ? "UPDATE users SET account = ?, display_name = ?, phone = ?, email = ?, subject = ?, employee_no = ?" + passwordSql + " WHERE id = ?"
+              : "UPDATE users SET account = ?, display_name = ?, phone = ?, email = ?" + passwordSql + " WHERE id = ?"
+          ).run(...params);
+          if (existing.role === "student") {
+            const child = await tx.prepare("SELECT id FROM children WHERE user_id = ?").get(accountId);
+            const childParams = [
+              displayName,
+              body.grade == null ? String(child && child.grade || "") : String(body.grade).trim(),
+              body.gender == null ? String(child && child.gender || "") : String(body.gender).trim(),
+              body.age == null ? (child ? (child.age == null ? null : child.age) : null) : (body.age === "" ? null : Number(body.age)),
+              body.caregiver == null ? String(child && child.caregiver || "") : String(body.caregiver).trim(),
+              body.interests == null ? String(child && child.interests || "") : String(body.interests).trim(),
+              body.familyNote == null ? String(child && child.family_note || "") : String(body.familyNote).trim()
+            ];
+            if (child) {
+              await tx.prepare("UPDATE children SET name = ?, grade = ?, gender = ?, age = ?, caregiver = ?, interests = ?, family_note = ? WHERE id = ?").run(...childParams, child.id);
+            } else {
+              await tx.prepare("INSERT INTO children (name, grade, gender, age, caregiver, interests, family_note, user_id) VALUES (?,?,?,?,?,?,?,?)").run(...childParams, accountId);
+            }
+            const parentAccount = String(body.parentAccount || "").trim();
+            if (parentAccount) {
+              const updatedChild = child || await tx.prepare("SELECT id FROM children WHERE user_id = ?").get(accountId);
+              const parent = await tx.prepare("SELECT id FROM users WHERE account = ? AND role = 'parent'").get(parentAccount);
+              if (!parent) throw new ApiError(400, "未找到对应的家长账号", "PARENT_NOT_FOUND");
+              await tx.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id, relation) VALUES (?, ?, ?)").run(parent.id, updatedChild.id, String(body.relation || "家长").trim() || "家长");
+            }
+          }
+        });
+        return sendJson(res, 200, { ok: true, id: accountId });
+      } catch (error) {
+        if (error && (error.code === "SQLITE_CONSTRAINT_UNIQUE" || error.code === "23505")) {
+          return sendJson(res, 409, { message: "该账号已被注册", errorCode: "ACCOUNT_EXISTS" });
+        }
+        throw error;
+      }
+    }
   }
 
   if (req.method === "GET" && pathname === "/api/admin/tasks") {

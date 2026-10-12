@@ -85,6 +85,7 @@ function setupWorkspaceNavigation(role, active) {
   if (!nav) return;
   var links = [
     { id: "overview", label: "全局概览", href: "admin.html" },
+    { id: "accounts", label: "账号管理", href: "admin-accounts.html" },
     { id: "tasks", label: "已发布任务", href: "admin-tasks.html" },
     { id: "timeline", label: "成长时间线", href: "admin-timeline.html" },
     { id: "ai", label: "AI 洞察", href: "teacher-ai.html" },
