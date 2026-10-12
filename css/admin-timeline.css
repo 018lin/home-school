@@ -179,6 +179,9 @@ body.admin-timeline-page {
 .entry-title { min-width: 0; color: var(--timeline-ink); font-size: 15px; line-height: 1.45; font-weight: 650; }
 .entry-badge { flex: 0 0 auto; padding: 4px 8px; border: 1px solid #cfe4f6; border-radius: 999px; color: #0a67af; background: #f0f8ff; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .entry-badge.observation { border-color: #e1d9f5; color: var(--timeline-purple); background: #f6f2fd; }
+.entry-student-line { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: var(--timeline-muted); font-size: 12px; }
+.entry-student-line strong { color: var(--timeline-ink); font-size: 13px; font-weight: 650; }
+.entry-student-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--timeline-blue); }
 .entry-meta { margin-top: 5px; color: var(--timeline-muted); font-size: 11px; }
 .entry-content { margin-top: 12px; color: #3f4650; font-size: 13px; line-height: 1.75; white-space: pre-line; overflow-wrap: anywhere; }
 .entry-content.is-empty { color: #9aa1aa; }

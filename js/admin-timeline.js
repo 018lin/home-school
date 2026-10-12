@@ -74,13 +74,18 @@
     var date = formatDate(item.createdAt);
     var content = String(item.content || "").trim();
     var tags = String(item.tags || "").split(",").map(function (tag) { return tag.trim(); }).filter(Boolean);
+    var showingAllStudents = !studentFilter.value;
+    var meta = [];
+    if (!showingAllStudents) meta.push(item.studentName || "未匹配学生");
+    if (item.grade) meta.push(item.grade);
+    meta.push(item.teacherName ? (item.kind === "observation" ? item.teacherName + " 记录" : "发布于 " + item.teacherName) : date.full);
     var html = '<article class="timeline-entry ' + (item.kind === "observation" ? "observation" : "submission") + '">' +
       '<div class="entry-time"><strong>' + esc(date.day) + '</strong><span>' + esc(date.time) + '</span></div>' +
       '<div class="entry-marker" aria-hidden="true"></div>' +
       '<div class="entry-card"><div class="entry-head"><h3 class="entry-title">' + esc(item.title || "成长记录") + '</h3>' +
       '<span class="entry-badge ' + (item.kind === "observation" ? "observation" : "") + '">' + esc(item.kindLabel) + '</span></div>' +
-      '<p class="entry-meta">' + esc(item.studentName || "未匹配学生") + (item.grade ? " · " + esc(item.grade) : "") +
-      " · " + esc(item.teacherName ? (item.kind === "observation" ? item.teacherName + " 记录" : "发布于 " + item.teacherName) : date.full) + '</p>' +
+      (showingAllStudents ? '<div class="entry-student-line"><span class="entry-student-dot" aria-hidden="true"></span><span>学生</span><strong>' + esc(item.studentName || "未匹配学生") + '</strong></div>' : "") +
+      '<p class="entry-meta">' + esc(meta.join(" · ")) + '</p>' +
       '<div class="entry-content' + (content ? "" : " is-empty") + '">' + esc(content || "这条记录没有文字内容。") + '</div>';
     if (item.analysis) html += '<div class="entry-analysis"><strong>教育观察</strong><br>' + esc(item.analysis) + '</div>';
     if (tags.length || item.recipientCount) {
