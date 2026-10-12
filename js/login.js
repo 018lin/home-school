@@ -71,6 +71,8 @@
             window.location.href = "teacher.html";
           } else if (result.data.user.role === "admin") {
             window.location.href = "admin.html";
+          } else if (result.data.user.role === "student") {
+            window.location.href = "student.html";
           } else {
             window.location.href = "home.html";
           }

@@ -149,7 +149,7 @@ async function canAccessChild(user, childId) {
   if (user.role === "teacher") {
     return !!await db.prepare("SELECT id FROM children WHERE id = ?").get(childId);
   }
-  return user.role === "parent" && await isBoundChild(user.id, childId);
+  return (user.role === "parent" || user.role === "student") && await isBoundChild(user.id, childId);
 }
 async function getVisibleTask(taskId, childId) {
   const task = await db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId);
@@ -2216,6 +2216,37 @@ async function seed() {
       15, "运动", thisWeek, teacherId, extraChildIds["小刚"]
     ).lastInsertRowid;
   }
+
+  // 学生端演示账号：与“小测”学生档案绑定，并准备一条可直接提交的本周任务。
+  var studentUser = await db.prepare("SELECT id FROM users WHERE account = 'xiaoce'").get();
+  if (!studentUser) {
+    studentUser = { id: await db.prepare(
+      "INSERT INTO users (account, password_hash, display_name, role) VALUES (?, ?, ?, 'student')"
+    ).run("xiaoce", hashPassword("000111"), "小测").lastInsertRowid };
+  } else {
+    await db.prepare("UPDATE users SET password_hash = ?, role = 'student', display_name = ? WHERE id = ?")
+      .run(hashPassword("000111"), "小测", studentUser.id);
+  }
+  var studentChild = await db.prepare("SELECT id FROM children WHERE name = '小测' ORDER BY id LIMIT 1").get();
+  if (!studentChild) {
+    studentChild = { id: await db.prepare(
+      "INSERT INTO children (name, grade, gender, age, caregiver, interests) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run("小测", "三年级", "", 9, "", "阅读,观察").lastInsertRowid };
+  }
+  await db.prepare("INSERT OR IGNORE INTO bindings (user_id, child_id, relation) VALUES (?, ?, '本人')")
+    .run(studentUser.id, studentChild.id);
+  var studentTask = await db.prepare("SELECT id FROM tasks WHERE week_start = ? AND child_id = ? ORDER BY id DESC LIMIT 1")
+    .get(thisWeek, studentChild.id);
+  if (!studentTask) {
+    await db.prepare(
+      "INSERT INTO tasks (title, goal, steps, dialogue_tips, submit_hint, duration, task_type, week_start, published_by, child_id, difficulty, materials, fallback_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    ).run(
+      "小测的观察记录", "完成一次简短观察，并说出自己的发现",
+      "1. 选择一个身边的小物品或植物\n2. 观察 5 分钟，记下两处变化或特点\n3. 用自己的话写下观察结果",
+      "你发现了什么？哪一点最有意思？", "提交 2-3 句话的观察记录，也可以补充一张照片",
+      10, "观察探究", thisWeek, teacherId, studentChild.id, "简单", "纸笔可选", "时间有限时只写下一条最重要的发现"
+    );
+  }
 }
 const databaseReady = initializeDatabase(db).then(seed);
 
@@ -2502,6 +2533,41 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { child });
   }
 
+  /* ---- 学生端首页：当前任务与提交入口 ---- */
+  if (req.method === "GET" && pathname === "/api/student/home") {
+    if (user.role !== "student") return sendJson(res, 403, { message: "仅学生账号可访问学生首页" });
+    const child = await db.prepare(
+      "SELECT c.* FROM children c JOIN bindings b ON b.child_id = c.id WHERE b.user_id = ? ORDER BY b.id LIMIT 1"
+    ).get(user.id);
+    const result = { child: child || null, task: null, taskStatus: "none", submission: null, feedback: null };
+    if (!child) return sendJson(res, 200, result);
+    let task = await db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id = ? ORDER BY id DESC LIMIT 1")
+      .get(mondayOf(new Date()), child.id);
+    if (!task) {
+      task = await db.prepare("SELECT * FROM tasks WHERE week_start = ? AND child_id IS NULL ORDER BY id DESC LIMIT 1")
+        .get(mondayOf(new Date()));
+    }
+    if (task) {
+      const submission = await db.prepare(
+        "SELECT * FROM submissions WHERE task_id = ? AND child_id = ? ORDER BY id DESC LIMIT 1"
+      ).get(task.id, child.id);
+      let taskStatus = "ongoing";
+      if (submission) {
+        taskStatus = submission.status === "draft" ? "draft" : "submitted";
+        if (submission.status !== "draft") {
+          const feedback = await db.prepare("SELECT * FROM feedback WHERE submission_id = ? ORDER BY id DESC LIMIT 1")
+            .get(submission.id);
+          if (feedback) result.feedback = feedback;
+        }
+      }
+      result.task = task;
+      result.taskStatus = taskStatus;
+      result.submission = submission || null;
+    }
+    await logEvent(user, "student_task_page_viewed", child.id, result.task && result.task.id, { source: "student_home" });
+    return sendJson(res, 200, result);
+  }
+
   /* ---- 首页聚合数据 ---- */
   if (req.method === "GET" && pathname === "/api/home") {
     if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可访问家庭首页" });
@@ -2750,7 +2816,7 @@ async function handleApi(req, res, pathname, query) {
 
   /* ---- 提交作品 ---- */
   if (req.method === "POST" && pathname === "/api/submissions") {
-    if (user.role !== "parent") return sendJson(res, 403, { message: "仅家长账号可提交作品" });
+    if (user.role !== "parent" && user.role !== "student") return sendJson(res, 403, { message: "仅家长或学生账号可提交作品" });
     const body = await readBody(req);
     const taskId = Number(body.taskId), childId = Number(body.childId);
     const content = String(body.content || "").trim();

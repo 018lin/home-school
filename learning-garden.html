@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学习园地 · 凌田家校</title>
+  <link rel="stylesheet" href="css/student.css">
+</head>
+<body class="student-page">
+  <header class="student-topbar">
+    <a class="student-brand" href="student.html"><span class="student-logo" aria-hidden="true"></span><span>凌田家校</span></a>
+    <nav class="student-nav" aria-label="学生端导航">
+      <a class="student-nav-link" href="student.html">任务提交</a>
+      <a class="student-nav-link active" href="learning-garden.html">学习园地</a>
+    </nav>
+    <div class="student-user-area">
+      <span class="student-user-name" id="userName">小测</span>
+      <button class="student-logout" id="logoutBtn" type="button">退出登录</button>
+    </div>
+  </header>
+  <main class="student-main placeholder-main">
+    <section class="student-panel placeholder-card">
+      <div class="placeholder-mark" aria-hidden="true">✦</div>
+      <p class="student-eyebrow">学习园地</p>
+      <h1>内容正在准备中</h1>
+      <p>这里将陆续放入阅读材料、学习小贴士和有趣的探索内容，敬请期待。</p>
+      <a class="student-button primary placeholder-link" href="student.html">返回任务提交</a>
+    </section>
+  </main>
+  <script src="js/api.js"></script>
+  <script>
+    (function () {
+      var auth = getAuth();
+      if (!auth || !auth.token) { window.location.href = "index.html"; return; }
+      document.getElementById("userName").textContent = (auth.user && auth.user.displayName) || "小测";
+      document.getElementById("logoutBtn").addEventListener("click", function () {
+        api("/api/auth/logout", { method: "POST" }).catch(function () {});
+        localStorage.removeItem("auth");
+        window.location.href = "index.html";
+      });
+    })();
+  </script>
+</body>
+</html>

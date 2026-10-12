@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务提交 · 凌田家校</title>
+  <link rel="stylesheet" href="css/student.css">
+</head>
+<body class="student-page">
+  <header class="student-topbar">
+    <a class="student-brand" href="student.html"><span class="student-logo" aria-hidden="true"></span><span>凌田家校</span></a>
+    <nav class="student-nav" aria-label="学生端导航">
+      <a class="student-nav-link active" href="student.html">任务提交</a>
+      <a class="student-nav-link" href="learning-garden.html">学习园地</a>
+    </nav>
+    <div class="student-user-area">
+      <span class="student-user-name" id="userName">小测</span>
+      <button class="student-logout" id="logoutBtn" type="button">退出登录</button>
+    </div>
+  </header>
+
+  <main class="student-main">
+    <section class="student-heading">
+      <div>
+        <p class="student-eyebrow">我的学习任务</p>
+        <h1>完成任务，提交你的发现</h1>
+        <p class="student-heading-sub">认真记录过程，老师会看到你的努力。</p>
+      </div>
+      <span class="student-status" id="taskStatus" hidden></span>
+    </section>
+
+    <section class="student-empty student-panel" id="emptyState" hidden>
+      <div class="empty-mark" aria-hidden="true">—</div>
+      <h2>本周暂时没有任务</h2>
+      <p>老师发布新任务后，这里会显示任务详情。</p>
+    </section>
+
+    <section class="student-task-grid" id="taskContent" hidden>
+      <article class="student-panel task-card">
+        <div class="task-label" id="taskType">观察探究</div>
+        <h2 id="taskTitle">本周任务</h2>
+        <p class="task-meta" id="taskMeta"></p>
+        <div class="task-facts">
+          <div><span>难度</span><strong id="taskDifficulty">简单</strong></div>
+          <div><span>材料</span><strong id="taskMaterials">无特殊材料</strong></div>
+        </div>
+        <div class="task-section">
+          <h3>任务目标</h3>
+          <p id="taskGoal"></p>
+        </div>
+        <div class="task-section">
+          <h3>完成步骤</h3>
+          <p id="taskSteps"></p>
+        </div>
+        <div class="task-tip" id="taskTips"></div>
+        <div class="task-section">
+          <h3>提交什么</h3>
+          <p id="taskSubmitHint"></p>
+        </div>
+      </article>
+
+      <aside class="student-panel submit-card" id="submitCard">
+        <h2>提交任务</h2>
+        <p class="panel-sub">写下你的过程、发现或感受。</p>
+        <label class="input-label" for="contentInput">我的记录</label>
+        <textarea id="contentInput" maxlength="1200" placeholder="例如：我观察到……"></textarea>
+        <div class="submit-footer"><span id="charCount">0 / 1200</span><span id="submitMessage" role="status"></span></div>
+        <div class="submit-actions">
+          <button class="student-button secondary" id="draftButton" type="button">保存草稿</button>
+          <button class="student-button primary" id="submitButton" type="button">提交任务</button>
+        </div>
+      </aside>
+
+      <aside class="student-panel submitted-card" id="submittedCard" hidden>
+        <div class="submitted-icon" aria-hidden="true">✓</div>
+        <h2>任务已提交</h2>
+        <p>老师会查看你的记录，继续保持。</p>
+        <div class="submitted-content" id="submittedContent"></div>
+        <div class="feedback-block" id="feedbackBlock" hidden>
+          <span>老师反馈</span>
+          <p id="feedbackContent"></p>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/student.js"></script>
+</body>
+</html>

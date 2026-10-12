@@ -74,6 +74,21 @@ test("postgres local timestamps are not shifted before JSON serialization", func
   assert.equal(parseTimestamp("2026-10-06 20:15:30"), "2026-10-06 20:15:30");
 });
 
+test("student account opens its own task workspace", async function () {
+  let result = await request("/api/auth/login", {
+    method: "POST",
+    body: { account: "xiaoce", password: "000111" }
+  });
+  assert.equal(result.response.status, 200);
+  assert.equal(result.data.user.role, "student");
+  assert.equal(result.data.user.displayName, "小测");
+
+  result = await request("/api/student/home", { token: result.data.token });
+  assert.equal(result.response.status, 200);
+  assert.equal(result.data.child.name, "小测");
+  assert.ok(result.data.task);
+});
+
 test("core parent and teacher workflow remains compatible", async function () {
   const account = "parent_" + Date.now();
   let result = await request("/api/auth/register", {
